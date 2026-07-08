@@ -61,8 +61,23 @@ def test_cli_help():
     assert result.returncode == 0
     assert "project" in result.stdout
     assert "workflow" in result.stdout
+    assert "resource" in result.stdout
     assert "run" in result.stdout
     assert "instance" in result.stdout
+
+
+def test_cli_resource_help():
+    """Installed CLI resource help exposes Resource Center commands."""
+    cli_path = _resolve_cli("cli-anything-dolphinscheduler")
+    result = subprocess.run(
+        [cli_path, "resource", "--help"], capture_output=True, text=True, check=False
+    )
+
+    assert result.returncode == 0
+    assert "create-file" in result.stdout
+    assert "upload" in result.stdout
+    assert "download" in result.stdout
+    assert "delete" in result.stdout
 
 
 def test_cli_instance_help():

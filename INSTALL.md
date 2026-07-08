@@ -2,9 +2,9 @@
 
 Chinese guide: [INSTALL.zh-CN.md](INSTALL.zh-CN.md).
 
-`cli-anything-dolphinscheduler` is a CLI-Anything harness for a running Apache
-DolphinScheduler API server. It calls the real REST API; it does not reimplement
-scheduling.
+`cli-anything-dolphinscheduler` lets Codex and other agents operate a running
+Apache DolphinScheduler API server. It calls the real REST API; it does not
+reimplement scheduling.
 
 ## AI Auto-Install Command
 
@@ -23,21 +23,22 @@ This installs:
 
 The same command is stored in `AI_INSTALL_COMMAND.txt`.
 
-If already in the repository root:
-
-```bash
-chmod +x install.sh
-./install.sh --dev --verify --force-installed-tests --install-skill --install-bin
-```
-
 ## Manual Install
 
 ```bash
 cd cli-anything-dolphinscheduler
 python3 -m venv .venv
 source .venv/bin/activate
+python3 -m pip install -U pip
 python3 -m pip install -e '.[dev]'
 cli-anything-dolphinscheduler --version
+```
+
+Or from the repository root:
+
+```bash
+chmod +x install.sh
+./install.sh --dev --verify --install-skill --install-bin --force-installed-tests
 ```
 
 Useful installer options:
@@ -50,7 +51,7 @@ Useful installer options:
 ./install.sh --system --user --verify
 ```
 
-## Configure DolphinScheduler Connection
+## Configure DolphinScheduler
 
 Token auth:
 
@@ -67,25 +68,46 @@ export DS_USER=admin
 export DS_PASSWORD=dolphinscheduler123
 ```
 
+Verify:
+
+```bash
+cli-anything-dolphinscheduler login
+cli-anything-dolphinscheduler --json project list
+```
+
 Persist config:
 
 ```bash
 cli-anything-dolphinscheduler \
   --url http://localhost:12345/dolphinscheduler \
-  --user admin \
-  --password dolphinscheduler123 \
+  --token <access-token> \
   config set
 ```
 
-## Basic Use
+## Agent Quickstart
+
+Use `--json` for machine-readable output.
 
 ```bash
-cli-anything-dolphinscheduler --json project list
-cli-anything-dolphinscheduler project use <project-name-or-code>
+cli-anything-dolphinscheduler --json project create "AgentProject"
+cli-anything-dolphinscheduler project use "AgentProject"
 cli-anything-dolphinscheduler --json workflow list
 ```
 
-Build task JSON without creating a workflow:
+Resource Center:
+
+```bash
+cli-anything-dolphinscheduler --json resource base-dir
+cli-anything-dolphinscheduler --json resource create-file \
+  --name hello.py \
+  --current-dir <directory-full-name> \
+  --content "print('hello')"
+cli-anything-dolphinscheduler --json resource upload \
+  --path ./job.py \
+  --current-dir <directory-full-name>
+```
+
+Task JSON:
 
 ```bash
 cli-anything-dolphinscheduler --json task build-python \
@@ -100,6 +122,41 @@ cli-anything-dolphinscheduler --json task build-generic \
   --code 1002
 ```
 
+Run and inspect:
+
+```bash
+cli-anything-dolphinscheduler workflow create-shell \
+  --name "agent_smoke" \
+  --task "hello:echo hello" \
+  --online
+cli-anything-dolphinscheduler --json run start "agent_smoke"
+cli-anything-dolphinscheduler --json instance task-list --state FAILURE
+```
+
+## Supported Areas
+
+| Area | Commands |
+|------|----------|
+| Projects | `project create/list/use/current/delete` |
+| Resource Center | `resource base-dir/tree/list/mkdir/create-file/upload/view/update-content/replace/rename/download/delete` |
+| Task JSON | `task build-shell/build-python/build-sql/build-http/build-generic` |
+| Workflows | `workflow create-shell/list/release/delete` |
+| Runs | `run start/control` |
+| Instances | `instance list/get/tasks/task-list/force-task-success/stop-task/delete` |
+| Schedules | `schedule create/list` |
+| Tokens | `token create/list` |
+
+## Current Boundaries
+
+- `workflow create-shell` is the only high-level workflow builder.
+- Non-shell task types are supported through `task build-*` JSON builders; use
+  `task build-generic` for plugin types and pass the exact server/plugin
+  `taskParams`.
+- Resource Center file/directory operations are supported. Task `resourceList`
+  values still need to match DolphinScheduler's real taskParams shape.
+- The CLI never fakes server success. Permissions, paths, and runtime behavior
+  are decided by the real DolphinScheduler server.
+
 ## For AI Agents
 
 After `--install-skill`, a new AI session can discover the skill at:
@@ -109,12 +166,11 @@ After `--install-skill`, a new AI session can discover the skill at:
 ~/.agents/skills/cli-anything-dolphinscheduler/SKILL.md
 ```
 
-Use `--json` for machine-readable output. If `cli-anything-dolphinscheduler` is
-not in `PATH`, call `~/.local/bin/cli-anything-dolphinscheduler`.
+If `cli-anything-dolphinscheduler` is not in `PATH`, call:
 
-## GitHub
-
-Repository: `git@github.com:ChenFatMan/cli-anything-dolphinscheduler.git`.
+```bash
+~/.local/bin/cli-anything-dolphinscheduler --json project list
+```
 
 ## Uninstall
 

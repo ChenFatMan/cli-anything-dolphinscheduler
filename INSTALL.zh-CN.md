@@ -1,38 +1,40 @@
 # cli-anything-dolphinscheduler 中文安装与使用说明
 
-可以直接安装给 AI，让后续 AI 自己调用。这个仓库的安装分两层：
+可以直接安装给 Codex。安装完成后，新的 Codex 会话会读取本仓库安装到
+`~/.codex/skills/cli-anything-dolphinscheduler/SKILL.md` 的 skill，然后可以自己调用
+`cli-anything-dolphinscheduler` 连接真实 DolphinScheduler API。
 
-- `--install-bin`：安装稳定 launcher 到 `~/.local/bin/cli-anything-dolphinscheduler`。
-- `--install-skill`：把 skill 安装到 `~/.codex/skills` 和 `~/.agents/skills`，让新 AI 会话能发现如何使用这个 CLI。
+前提只有两个：
 
-安装完成后，新的 AI 会话可以通过 `cli-anything-dolphinscheduler` 这个命令调用真实 DolphinScheduler API。当前会话若还没重新加载 skill，也可以直接调用 `~/.local/bin/cli-anything-dolphinscheduler`。
+- DolphinScheduler API Server 可访问，例如 `http://localhost:12345/dolphinscheduler`
+- Codex 拿得到凭据：`DS_TOKEN`，或 `DS_USER` / `DS_PASSWORD`
 
 ## 给 AI 自动安装的一条命令
 
-把下面这条命令交给 AI agent 执行即可：
+把下面整条命令交给 Codex 执行：
 
 ```bash
 REPO_URL="git@github.com:ChenFatMan/cli-anything-dolphinscheduler.git"; INSTALL_DIR="${HOME}/.local/share/cli-anything-dolphinscheduler"; mkdir -p "$(dirname "$INSTALL_DIR")"; if [ -d "$INSTALL_DIR/.git" ]; then git -C "$INSTALL_DIR" pull --ff-only; else git clone "$REPO_URL" "$INSTALL_DIR"; fi && cd "$INSTALL_DIR" && chmod +x install.sh && ./install.sh --dev --verify --install-skill --install-bin --force-installed-tests
 ```
 
-同一条命令保存在：
+同一条命令保存在 `AI_INSTALL_COMMAND.txt`。
 
-```text
-AI_INSTALL_COMMAND.txt
-```
+这条命令会安装：
 
-如果已经在本仓库根目录：
+- 本仓库 `.venv` 里的 Python 包
+- 稳定命令入口 `~/.local/bin/cli-anything-dolphinscheduler`
+- Codex skill：`~/.codex/skills/cli-anything-dolphinscheduler/SKILL.md`
+- 通用 agent skill：`~/.agents/skills/cli-anything-dolphinscheduler/SKILL.md`
+- 安装后验证和 subprocess 测试
+
+如果已经在仓库根目录：
 
 ```bash
 chmod +x install.sh
-./install.sh --dev --verify --force-installed-tests --install-skill --install-bin
+./install.sh --dev --verify --install-skill --install-bin --force-installed-tests
 ```
 
-这会创建 `.venv`，安装 CLI，安装 AI skill，安装 launcher，并跑基础验证和 subprocess 测试。
-
 ## 手动安装
-
-推荐方式：
 
 ```bash
 cd cli-anything-dolphinscheduler
@@ -43,34 +45,22 @@ python3 -m pip install -e '.[dev]'
 cli-anything-dolphinscheduler --version
 ```
 
-或者使用安装脚本：
-
-```bash
-./install.sh --dev --verify --install-skill --install-bin
-```
-
-常用参数：
+安装脚本常用参数：
 
 | 参数 | 作用 |
 |------|------|
 | `--dev` | 安装测试依赖 |
-| `--verify` | 安装后验证 CLI |
+| `--verify` | 安装后做 smoke check |
 | `--force-installed-tests` | 强制用已安装命令跑 subprocess 测试 |
-| `--install-skill` | 安装 AI skill 到默认 skills 目录 |
-| `--skill-dir DIR` | 指定额外 skills 根目录 |
+| `--install-skill` | 安装 AI skill 到 `~/.codex/skills` 和 `~/.agents/skills` |
+| `--skill-dir DIR` | 指定额外 skill 根目录 |
 | `--install-bin` | 安装 launcher 到 `~/.local/bin` |
-| `--bin-dir DIR` | 指定 launcher 安装目录 |
+| `--bin-dir DIR` | 指定 launcher 目录 |
 | `--venv DIR` | 指定虚拟环境目录 |
-| `--system` | 使用当前 Python 环境，不创建 `.venv` |
+| `--system` | 使用当前 Python 环境 |
 | `--user` | 配合 `--system` 做用户级安装 |
 
-## 配置 DolphinScheduler
-
-CLI 需要能访问真实 DolphinScheduler API Server。默认地址：
-
-```text
-http://localhost:12345/dolphinscheduler
-```
+## 配置 DolphinScheduler 连接
 
 推荐使用 token：
 
@@ -87,57 +77,97 @@ export DS_USER=admin
 export DS_PASSWORD=dolphinscheduler123
 ```
 
+验证连接：
+
+```bash
+cli-anything-dolphinscheduler login
+cli-anything-dolphinscheduler --json project list
+```
+
 持久化配置：
 
 ```bash
 cli-anything-dolphinscheduler \
   --url http://localhost:12345/dolphinscheduler \
-  --user admin \
-  --password dolphinscheduler123 \
+  --token <access-token> \
   config set
 ```
 
-配置优先级：CLI 参数 > 环境变量 > 配置文件 > 默认值。
+配置优先级：命令行参数 > 环境变量 > 配置文件 > 默认值。
 
-## 基础使用
+## Codex 可以直接做什么
 
-AI 调用时建议始终加 `--json`。
+| 能力 | 命令 |
+|------|------|
+| 项目 | `project create/list/use/current/delete` |
+| 资源中心 | `resource base-dir/tree/list/mkdir/create-file/upload/view/update-content/replace/rename/download/delete` |
+| Task JSON | `task build-shell/build-python/build-sql/build-http/build-generic` |
+| 工作流定义 | `workflow create-shell/list/release/delete` |
+| 运行工作流 | `run start/control` |
+| 实例排查 | `instance list/get/tasks/task-list/force-task-success/stop-task/delete` |
+| 定时 | `schedule create/list` |
+| Token | `token create/list` |
+
+所有给 AI 解析的命令都建议加 `--json`。非零退出码表示失败，JSON 错误通常在 stderr。
+
+## 资源中心操作
+
+先拿 Resource Center 根目录：
 
 ```bash
-cli-anything-dolphinscheduler --json project list
-cli-anything-dolphinscheduler project create "Analytics"
-cli-anything-dolphinscheduler project use "Analytics"
-cli-anything-dolphinscheduler --json workflow list
+cli-anything-dolphinscheduler --json resource base-dir
 ```
 
-创建并运行一个简单 SHELL 工作流：
+列目录：
 
 ```bash
-cli-anything-dolphinscheduler workflow create-shell \
-  --name "agent_smoke" \
-  --task "hello:echo hello" \
-  --online
-
-cli-anything-dolphinscheduler --json run start "agent_smoke"
+cli-anything-dolphinscheduler --json resource list \
+  --full-name <directory-full-name>
 ```
 
-查看实例和任务：
+创建目录：
 
 ```bash
-cli-anything-dolphinscheduler --json instance list --page-size 10
-cli-anything-dolphinscheduler --json instance tasks <workflow-instance-id>
-cli-anything-dolphinscheduler --json instance task-list --workflow-instance-id <workflow-instance-id>
+cli-anything-dolphinscheduler --json resource mkdir \
+  --name scripts \
+  --current-dir <parent-directory-full-name>
+```
+
+直接从文本创建文件：
+
+```bash
+cli-anything-dolphinscheduler --json resource create-file \
+  --name hello.py \
+  --current-dir <directory-full-name> \
+  --content "print('hello')"
+```
+
+上传本地文件：
+
+```bash
+cli-anything-dolphinscheduler --json resource upload \
+  --path ./job.py \
+  --current-dir <directory-full-name>
+```
+
+查看、更新、下载、删除：
+
+```bash
+cli-anything-dolphinscheduler --json resource view <file-full-name>
+cli-anything-dolphinscheduler --json resource update-content <file-full-name> --content-file ./job.py
+cli-anything-dolphinscheduler --json resource download <file-full-name> --output ./job.py
+cli-anything-dolphinscheduler --json resource delete <file-full-name> --yes
 ```
 
 ## Task 构造不是只有 SHELL
 
-`workflow create-shell` 只是高频快捷入口，不代表只能创建 SHELL。构造 `taskDefinitionJson` 用 `task` 分组：
+`workflow create-shell` 只是创建 shell DAG 的快捷入口。真正的 Task 构造在 `task` 分组：
 
 ```bash
 cli-anything-dolphinscheduler task --help
 ```
 
-已提供：
+已支持：
 
 | 命令 | 任务类型 |
 |------|----------|
@@ -174,45 +204,57 @@ cli-anything-dolphinscheduler --json task build-generic \
   --code 1004
 ```
 
-`build-generic` 覆盖 SPARK、FLINK、DATAX、K8S、SUB_PROCESS 等未提供 typed builder 的插件任务。它不会猜参数，`--params-json` 必须是 DolphinScheduler server/plugin 真实期望的 `taskParams` JSON。
+`build-generic` 不猜参数。`--params-json` 必须是 DolphinScheduler server/plugin 真实期望的
+`taskParams` JSON。
 
 `--code` 规则：
 
 - 传 `--code`：离线构造 JSON，不访问 server 分配 task code。
-- 不传 `--code`：从当前项目或 `--project-code` 调用 DolphinScheduler API 分配真实 task code。
+- 不传 `--code`：从当前项目或 `--project-code` 调用 API 分配真实 task code。
 
-## AI 使用规则
+## 创建并运行一个最小工作流
 
-- 新会话先让 AI 读取 skill：`~/.codex/skills/cli-anything-dolphinscheduler/SKILL.md`。
-- 机器解析场景始终用 `--json`。
-- 如果 `cli-anything-dolphinscheduler` 不在 `PATH`，用 `~/.local/bin/cli-anything-dolphinscheduler`。
-- 非零退出码代表失败；错误 JSON 通常在 stderr。
-- 先用 `project use <name-or-code>` 选择项目，或每次显式传 `--project-code`。
-- `run start` 前工作流必须 ONLINE。
-- 排查任务失败优先用 `instance task-list` 和 `instance tasks`。
+```bash
+cli-anything-dolphinscheduler --json project create "AgentProject"
+cli-anything-dolphinscheduler project use "AgentProject"
+
+cli-anything-dolphinscheduler workflow create-shell \
+  --name "agent_smoke" \
+  --task "hello:echo hello" \
+  --online
+
+cli-anything-dolphinscheduler --json run start "agent_smoke"
+```
+
+查看实例和失败任务：
+
+```bash
+cli-anything-dolphinscheduler --json instance list --page-size 10
+cli-anything-dolphinscheduler --json instance tasks <workflow-instance-id>
+cli-anything-dolphinscheduler --json instance task-list --state FAILURE
+```
+
+## 当前边界
+
+- 高级工作流创建只有 `workflow create-shell` 快捷命令。
+- 非 shell 工作流需要 AI 用 `task build-*` 生成 `taskDefinitionJson`，再按 DolphinScheduler API 形状组装工作流；后续可以继续封装 typed workflow builder。
+- Resource Center 已支持文件/目录常用操作，但 task 的 `resourceList` 仍需要按 DolphinScheduler taskParams 真实结构传入。
+- 真实运行、资源路径和权限都由 DolphinScheduler server 决定；CLI 不伪造成功。
 
 ## 测试
 
 ```bash
 ./install.sh --help
-./install.sh --verify
+./install.sh --dev --verify --force-installed-tests --install-skill --install-bin
 source .venv/bin/activate
 python3 -m pytest cli_anything/dolphinscheduler/tests/test_core.py -v
 CLI_ANYTHING_FORCE_INSTALLED=1 python3 -m pytest cli_anything/dolphinscheduler/tests/test_subprocess.py -v
 ```
 
-真实 E2E 测试需要正在运行的 DolphinScheduler API Server：
+真实 E2E 测试需要运行中的 DolphinScheduler API Server：
 
 ```bash
 python3 -m pytest -m e2e cli_anything/dolphinscheduler/tests/test_full_e2e.py -v
-```
-
-## 推送到 GitHub
-
-仓库地址：
-
-```text
-git@github.com:ChenFatMan/cli-anything-dolphinscheduler.git
 ```
 
 ## 卸载

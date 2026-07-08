@@ -64,6 +64,7 @@ Every endpoint returns the `Result<T>` envelope (`api/utils/Result.java`):
 | Task instance | `int id` | One execution of a node |
 | Schedule | `int id` | Cron attached to a definition |
 | Access token | `int id` | Stateless credential |
+| Resource Center entry | `String fullName` | File or directory under the authenticated user/tenant storage root |
 
 **Key insight:** A workflow definition is built from two parallel JSON documents
 passed as form fields:
@@ -95,6 +96,17 @@ server's binding.
 |------------|---------------|-------------|
 | Create project | `POST /projects` | `project create` |
 | List projects | `GET /projects/list` | `project list` |
+| Find resource base dir | `GET /resources/base-dir` | `resource base-dir` |
+| List resource tree | `GET /resources/list` | `resource tree` |
+| List resource directory | `GET /resources` | `resource list` |
+| Create resource directory | `POST /resources/directory` | `resource mkdir` |
+| Create text resource | `POST /resources/online-create` | `resource create-file` |
+| Upload resource file | `POST /resources` | `resource upload` |
+| View resource content | `GET /resources/view` | `resource view` |
+| Update resource content | `PUT /resources/update-content` | `resource update-content` |
+| Replace or rename resource | `PUT /resources` | `resource replace` / `resource rename` |
+| Download resource | `GET /resources/download` | `resource download` |
+| Delete resource | `DELETE /resources` | `resource delete` |
 | Build task JSON | local constructors + optional `GET /projects/{code}/task-definition/gen-task-codes` | `task build-*` |
 | Create workflow | `POST /projects/{code}/workflow-definition` | `workflow create-shell` |
 | Publish workflow | `POST /projects/{code}/workflow-definition/{c}/release` | `workflow release` / `--online` |
@@ -135,6 +147,29 @@ retry/timeout/resource fields) and normalize common `taskParams` keys. When
 `--code` is used, construction is fully local. Without `--code`, the CLI calls
 `GET /projects/{projectCode}/task-definition/gen-task-codes` to allocate a real
 server-side task code before rendering JSON.
+
+### Resource Center files
+`ResourcesController` is mounted at `/resources` and is not project-scoped. The
+CLI exposes the common file/directory operations agents need before building
+tasks:
+
+- `GET /resources/base-dir?type=FILE` discovers the writable storage root.
+- `POST /resources/directory` creates directories under `currentDir`.
+- `POST /resources/online-create` creates text files from `fileName`, `suffix`,
+  `content`, and `currentDir`.
+- `POST /resources` uploads multipart files.
+- `GET /resources` pages a directory by `fullName`.
+- `GET /resources/view` fetches text content.
+- `PUT /resources/update-content` replaces text content.
+- `PUT /resources` renames directories/files or replaces a file with multipart
+  upload.
+- `GET /resources/download` returns binary attachment content, so
+  `core/client.py` has a dedicated `download()` method.
+- `DELETE /resources?fullName=...` deletes a file or directory.
+
+The stable identifier for Resource Center commands is `fullName`. Task
+`resourceList` wiring still belongs inside the task plugin's expected
+`taskParams` shape.
 
 ### Control an instance
 `POST /projects/{projectCode}/executors/execute` with `workflowInstanceId` +
@@ -188,6 +223,7 @@ Verified against DolphinScheduler 3.4.2 source:
 
 - `dolphinscheduler-api/.../interceptor/LoginHandlerInterceptor.java` — `token` header auth
 - `dolphinscheduler-api/.../utils/Result.java` — response envelope
+- `dolphinscheduler-api/.../controller/ResourcesController.java` — Resource Center API
 - `dolphinscheduler-api/.../controller/` — 35 REST controllers
 - `dolphinscheduler-api/src/main/resources/application.yaml` — port 12345, context path
 - `dolphinscheduler-api-test/.../workflow-json/test.json` — task/relation JSON shapes

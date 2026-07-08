@@ -405,14 +405,13 @@ pytest --cov=cli_anything.dolphinscheduler --cov-report=term-missing --cov-repor
 
 Command:
 ```bash
-uv run --with pytest --with click --with requests --with prompt-toolkit \
-  python -m pytest cli_anything/dolphinscheduler/tests/test_core.py -v
+./.venv/bin/python -m pytest cli_anything/dolphinscheduler/tests/test_core.py -v
 ```
 
 ```
 ============================= test session starts ==============================
 platform darwin -- Python 3.13.3, pytest-9.1.1, pluggy-1.6.0
-collected 33 items
+collected 40 items
 
 cli_anything/dolphinscheduler/tests/test_core.py::test_load_config_cli_args_win PASSED
 cli_anything/dolphinscheduler/tests/test_core.py::test_load_config_env_over_file PASSED
@@ -447,22 +446,28 @@ cli_anything/dolphinscheduler/tests/test_core.py::test_list_task_instances_with_
 cli_anything/dolphinscheduler/tests/test_core.py::test_task_instance_controls PASSED
 cli_anything/dolphinscheduler/tests/test_core.py::test_cli_instance_task_list_json PASSED
 cli_anything/dolphinscheduler/tests/test_core.py::test_cli_instance_tasks_json PASSED
+cli_anything/dolphinscheduler/tests/test_core.py::test_client_download_binary_success PASSED
+cli_anything/dolphinscheduler/tests/test_core.py::test_resource_create_file_from_content_splits_name PASSED
+cli_anything/dolphinscheduler/tests/test_core.py::test_resource_list_items_params PASSED
+cli_anything/dolphinscheduler/tests/test_core.py::test_resource_upload_file_uses_multipart PASSED
+cli_anything/dolphinscheduler/tests/test_core.py::test_cli_resource_create_file_json PASSED
+cli_anything/dolphinscheduler/tests/test_core.py::test_cli_resource_download_writes_file PASSED
+cli_anything/dolphinscheduler/tests/test_core.py::test_cli_resource_update_content_requires_one_source PASSED
 
-============================== 33 passed in 0.18s ==============================
+============================== 40 passed in 0.21s ==============================
 ```
 
 **Summary:**
-- ✅ 33/33 unit tests pass (100% pass rate)
-- Coverage: Config, Session, Client, Projects, Workflows (DagBuilder), generic and typed Task construction, task-instance wrappers, and CLI JSON routing
+- ✅ 40/40 unit tests pass (100% pass rate)
+- Coverage: Config, Session, Client, Projects, Workflows (DagBuilder), generic and typed Task construction, task-instance wrappers, Resource Center wrappers, binary download, and CLI JSON routing
 - All tests run with mocked HTTP responses (no server required)
-- Test execution time: 0.18s
+- Test execution time: 0.21s
 
 ### E2E Tests (`test_full_e2e.py`)
 
 Command:
 ```bash
-uv run --with pytest --with click --with requests --with prompt-toolkit \
-  --with-editable . python -m pytest cli_anything/dolphinscheduler/tests/test_full_e2e.py -v
+./.venv/bin/python -m pytest -m e2e cli_anything/dolphinscheduler/tests/test_full_e2e.py -v
 ```
 
 ```
@@ -473,7 +478,7 @@ collected 2 items
 cli_anything/dolphinscheduler/tests/test_full_e2e.py::test_full_workflow_lifecycle PASSED
 cli_anything/dolphinscheduler/tests/test_full_e2e.py::test_schedule_preview_only PASSED
 
-============================== 2 passed in 2.48s ===============================
+============================== 2 passed in 2.45s ===============================
 ```
 
 **Summary:**
@@ -484,39 +489,38 @@ cli_anything/dolphinscheduler/tests/test_full_e2e.py::test_schedule_preview_only
 
 Command:
 ```bash
-uv run --with pytest --with click --with requests --with prompt-toolkit \
-  --with-editable . env CLI_ANYTHING_FORCE_INSTALLED=1 \
-  python -m pytest cli_anything/dolphinscheduler/tests/test_subprocess.py -v
+CLI_ANYTHING_FORCE_INSTALLED=1 ./.venv/bin/python -m pytest cli_anything/dolphinscheduler/tests/test_subprocess.py -v
 ```
 
 ```
 ============================= test session starts ==============================
 platform darwin -- Python 3.13.3, pytest-9.1.1, pluggy-1.6.0
-collected 6 items
+collected 7 items
 
 cli_anything/dolphinscheduler/tests/test_subprocess.py::test_cli_version PASSED
 cli_anything/dolphinscheduler/tests/test_subprocess.py::test_cli_help PASSED
+cli_anything/dolphinscheduler/tests/test_subprocess.py::test_cli_resource_help PASSED
 cli_anything/dolphinscheduler/tests/test_subprocess.py::test_cli_instance_help PASSED
 cli_anything/dolphinscheduler/tests/test_subprocess.py::test_cli_config_show PASSED
 cli_anything/dolphinscheduler/tests/test_subprocess.py::test_cli_project_list_json_no_server PASSED
 cli_anything/dolphinscheduler/tests/test_subprocess.py::test_cli_project_list_json_with_server PASSED
 
-============================== 6 passed in 2.45s ===============================
+============================== 7 passed in 1.34s ===============================
 ```
 
 **Summary:**
-- ✅ 6/6 subprocess tests pass
-- ✅ CLI installed successfully via `uv --with-editable .`
+- ✅ 7/7 subprocess tests pass
+- ✅ CLI installed successfully via `./install.sh --dev --verify --install-skill --install-bin --force-installed-tests`
 - ✅ `cli-anything-dolphinscheduler` command available in PATH
-- ✅ `--version`, `--help`, `instance --help`, `config show`, and `--json` output all work
+- ✅ `--version`, `--help`, `resource --help`, `instance --help`, `config show`, and `--json` output all work
 - ✅ Structured error handling verified (no server → JSON error on stderr)
 
 ---
 
 ## Conclusion
 
-- **Unit tests**: ✅ Complete, all passing (33/33)
+- **Unit tests**: ✅ Complete, all passing (40/40)
 - **E2E tests**: ✅ Complete, all passing against a real server (2/2)
-- **Subprocess tests**: ✅ Complete, all passing (6/6)
+- **Subprocess tests**: ✅ Complete, all passing (7/7)
 - **Installation**: ✅ Works via editable install, CLI in PATH
 - **Overall**: Core functionality verified, harness ready for production use

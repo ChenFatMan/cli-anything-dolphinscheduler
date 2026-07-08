@@ -776,3 +776,198 @@ def test_cli_instance_tasks_json():
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["data"] == payload
     assert get_instance_tasks.call_args.args[1:] == (100, 555)
+
+
+# ── Resource Center tests ───────────────────────────────────────────────────
+
+
+def test_client_download_binary_success():
+    """Client.download returns binary payloads without JSON parsing."""
+    from cli_anything.dolphinscheduler.core.client import DolphinSchedulerClient
+    from cli_anything.dolphinscheduler.core.config import ClientConfig
+
+    client = DolphinSchedulerClient(ClientConfig(url="http://test/ds", token="test-token"))
+    response = mock.Mock()
+    response.status_code = 200
+    response.headers = {"Content-Type": "application/octet-stream"}
+    response.content = b"resource-bytes"
+
+    with mock.patch.object(client._session, "request", return_value=response) as request:
+        result = client.download("/resources/download", params={"fullName": "/tenant/demo.py"})
+
+    assert result == b"resource-bytes"
+    assert request.call_args.args[:2] == ("GET", "http://test/ds/resources/download")
+    assert request.call_args.kwargs["params"] == {"fullName": "/tenant/demo.py"}
+
+
+def test_resource_create_file_from_content_splits_name():
+    """Resource content creation passes fileName/suffix expected by the API."""
+    from cli_anything.dolphinscheduler.core import resources
+    from cli_anything.dolphinscheduler.core.client import DolphinSchedulerClient
+    from cli_anything.dolphinscheduler.core.config import ClientConfig
+
+    client = DolphinSchedulerClient(ClientConfig(url="http://test/ds", token="test-token"))
+
+    with mock.patch.object(client._session, "request", return_value=_success_response(None)) as request:
+        resources.create_file_from_content(
+            client,
+            "job.py",
+            "print('ok')",
+            "/tenant/resources",
+        )
+
+    assert request.call_args.args[:2] == ("POST", "http://test/ds/resources/online-create")
+    assert request.call_args.kwargs["data"] == {
+        "type": "FILE",
+        "fileName": "job",
+        "suffix": "py",
+        "content": "print('ok')",
+        "currentDir": "/tenant/resources",
+    }
+
+
+def test_resource_list_items_params():
+    """Resource directory listing passes pagination and search params."""
+    from cli_anything.dolphinscheduler.core import resources
+    from cli_anything.dolphinscheduler.core.client import DolphinSchedulerClient
+    from cli_anything.dolphinscheduler.core.config import ClientConfig
+
+    client = DolphinSchedulerClient(ClientConfig(url="http://test/ds", token="test-token"))
+    payload = {"totalList": [{"fileName": "job.py"}]}
+
+    with mock.patch.object(client._session, "request", return_value=_success_response(payload)) as request:
+        result = resources.list_items(
+            client,
+            "/tenant/resources",
+            search_val="job",
+            page_no=2,
+            page_size=5,
+        )
+
+    assert result == payload
+    assert request.call_args.args[:2] == ("GET", "http://test/ds/resources")
+    assert request.call_args.kwargs["params"] == {
+        "type": "FILE",
+        "fullName": "/tenant/resources",
+        "searchVal": "job",
+        "pageNo": 2,
+        "pageSize": 5,
+    }
+
+
+def test_resource_upload_file_uses_multipart(tmp_path):
+    """Resource upload sends the file and form fields expected by the API."""
+    from cli_anything.dolphinscheduler.core import resources
+    from cli_anything.dolphinscheduler.core.client import DolphinSchedulerClient
+    from cli_anything.dolphinscheduler.core.config import ClientConfig
+
+    local_file = tmp_path / "job.py"
+    local_file.write_text("print('ok')", encoding="utf-8")
+    client = DolphinSchedulerClient(ClientConfig(url="http://test/ds", token="test-token"))
+
+    with mock.patch.object(client._session, "request", return_value=_success_response(None)) as request:
+        resources.upload_file(client, str(local_file), "/tenant/resources")
+
+    assert request.call_args.args[:2] == ("POST", "http://test/ds/resources")
+    assert request.call_args.kwargs["data"] == {
+        "type": "FILE",
+        "name": "job.py",
+        "currentDir": "/tenant/resources",
+    }
+    assert request.call_args.kwargs["files"]["file"][0] == "job.py"
+
+
+def test_cli_resource_create_file_json(tmp_path):
+    """CLI can create a Resource Center file from a local content file."""
+    from cli_anything.dolphinscheduler.dolphinscheduler_cli import cli
+
+    content_file = tmp_path / "job.py"
+    content_file.write_text("print('ok')", encoding="utf-8")
+    runner = CliRunner()
+
+    with mock.patch(
+        "cli_anything.dolphinscheduler.dolphinscheduler_cli.resources.create_file_from_content",
+        return_value=None,
+    ) as create_file:
+        result = runner.invoke(
+            cli,
+            [
+                "--url",
+                "http://test/ds",
+                "--token",
+                "test-token",
+                "--json",
+                "resource",
+                "create-file",
+                "--name",
+                "job.py",
+                "--current-dir",
+                "/tenant/resources",
+                "--content-file",
+                str(content_file),
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)["data"]
+    assert data["name"] == "job.py"
+    assert create_file.call_args.args[1:] == ("job.py", "print('ok')", "/tenant/resources")
+
+
+def test_cli_resource_download_writes_file(tmp_path):
+    """CLI resource download writes bytes to the requested local output path."""
+    from cli_anything.dolphinscheduler.dolphinscheduler_cli import cli
+
+    output = tmp_path / "job.py"
+    runner = CliRunner()
+
+    with mock.patch(
+        "cli_anything.dolphinscheduler.dolphinscheduler_cli.resources.download_resource",
+        return_value=b"print('ok')",
+    ) as download:
+        result = runner.invoke(
+            cli,
+            [
+                "--url",
+                "http://test/ds",
+                "--token",
+                "test-token",
+                "--json",
+                "resource",
+                "download",
+                "/tenant/resources/job.py",
+                "--output",
+                str(output),
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert output.read_bytes() == b"print('ok')"
+    assert json.loads(result.output)["data"]["bytes"] == len(b"print('ok')")
+    assert download.call_args.args[1] == "/tenant/resources/job.py"
+
+
+def test_cli_resource_update_content_requires_one_source():
+    """CLI rejects ambiguous Resource Center content input."""
+    from cli_anything.dolphinscheduler.dolphinscheduler_cli import cli
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "--url",
+            "http://test/ds",
+            "--token",
+            "test-token",
+            "--json",
+            "resource",
+            "update-content",
+            "/tenant/resources/job.py",
+        ],
+    )
+
+    assert result.exit_code == 1
+    error = json.loads(result.stderr)
+    assert error["success"] is False
+    assert error["error"] == "invalid_input"
+    assert "pass --content or --content-file" in error["message"]

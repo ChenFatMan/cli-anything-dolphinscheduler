@@ -9,7 +9,8 @@ Design:
 * A root ``cli`` group resolves connection config and builds a shared
   :class:`Context` (client + session + output writer).
 * Command groups mirror the server's domains: ``project``, ``workflow``,
-  ``run``, ``instance``, ``schedule``, ``token``, plus ``config`` and ``login``.
+  ``resource``, ``run``, ``instance``, ``schedule``, ``token``, plus ``config``
+  and ``login``.
 * Every command supports ``--json`` for machine-readable output.
 * With no subcommand, the CLI drops into an interactive REPL.
 
@@ -21,11 +22,12 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Optional
 
 import click
 
-from .core import executors, instances, projects, schedules, tasks, tokens, workflows
+from .core import executors, instances, projects, resources, schedules, tasks, tokens, workflows
 from .core.client import DolphinSchedulerClient
 from .core.config import ClientConfig, load_config, save_config
 from .core.errors import DolphinSchedulerError
@@ -76,6 +78,9 @@ def _run(ctx: Context, func) -> None:
         sys.exit(1)
     except ValueError as exc:
         ctx.output.error({"error": "invalid_input", "message": str(exc)})
+        sys.exit(1)
+    except OSError as exc:
+        ctx.output.error({"error": "filesystem_error", "message": str(exc)})
         sys.exit(1)
 
 
@@ -509,6 +514,286 @@ def task_build_http(
     _run(ctx, command_body)
 
 
+# ── resource group ──────────────────────────────────────────────────────────
+
+
+@cli.group()
+def resource() -> None:
+    """Manage Resource Center files and directories."""
+
+
+@resource.command("base-dir")
+@click.option("--type", "resource_type", type=click.Choice(resources.RESOURCE_TYPES), default="FILE")
+@click.pass_obj
+def resource_base_dir(ctx: Context, resource_type: str) -> None:
+    """Show the Resource Center base directory."""
+    def body() -> None:
+        full_name = resources.base_dir(ctx.client, resource_type)
+        ctx.output.status_block(
+            {"type": resource_type, "fullName": full_name},
+            title="Resource base dir",
+            data={"type": resource_type, "fullName": full_name},
+        )
+
+    _run(ctx, body)
+
+
+@resource.command("tree")
+@click.option("--type", "resource_type", type=click.Choice(resources.RESOURCE_TYPES), default="FILE")
+@click.pass_obj
+def resource_tree(ctx: Context, resource_type: str) -> None:
+    """List the full Resource Center tree."""
+    def body() -> None:
+        items = resources.list_tree(ctx.client, resource_type)
+        rows = [
+            [
+                item.get("name"),
+                item.get("fullName"),
+                item.get("isDirectory", item.get("isDirctory", item.get("dirctory"))),
+                len(item.get("children") or []),
+            ]
+            for item in items
+            if isinstance(item, dict)
+        ]
+        ctx.output.table(["name", "fullName", "dir", "children"], rows, data=items)
+
+    _run(ctx, body)
+
+
+@resource.command("list")
+@click.option("--full-name", required=True, help="Directory fullName to list.")
+@click.option("--type", "resource_type", type=click.Choice(resources.RESOURCE_TYPES), default="FILE")
+@click.option("--search", "search_val", default=None, help="Filter by file name.")
+@click.option("--page-no", type=int, default=1)
+@click.option("--page-size", type=int, default=20)
+@click.pass_obj
+def resource_list(
+    ctx: Context,
+    full_name: str,
+    resource_type: str,
+    search_val: Optional[str],
+    page_no: int,
+    page_size: int,
+) -> None:
+    """List one Resource Center directory page."""
+    def body() -> None:
+        page = resources.list_items(
+            ctx.client,
+            full_name,
+            resource_type=resource_type,
+            search_val=search_val,
+            page_no=page_no,
+            page_size=page_size,
+        )
+        rows = [
+            [
+                item.get("fileName") or item.get("alias"),
+                item.get("fullName"),
+                item.get("isDirectory"),
+                item.get("size"),
+                item.get("updateTime"),
+            ]
+            for item in (page.get("totalList") or [])
+        ]
+        ctx.output.table(["name", "fullName", "dir", "size", "updated"], rows, data=page)
+
+    _run(ctx, body)
+
+
+@resource.command("mkdir")
+@click.option("--name", required=True, help="Directory name to create.")
+@click.option("--current-dir", required=True, help="Parent directory fullName.")
+@click.option("--type", "resource_type", type=click.Choice(resources.RESOURCE_TYPES), default="FILE")
+@click.pass_obj
+def resource_mkdir(ctx: Context, name: str, current_dir: str, resource_type: str) -> None:
+    """Create a Resource Center directory."""
+    def body() -> None:
+        result = resources.create_directory(ctx.client, name, current_dir, resource_type=resource_type)
+        ctx.output.success(
+            f"Created resource directory {name!r}",
+            data={"name": name, "currentDir": current_dir, "type": resource_type, "result": result},
+        )
+
+    _run(ctx, body)
+
+
+@resource.command("create-file")
+@click.option("--name", required=True, help="File name with suffix, e.g. job.py.")
+@click.option("--current-dir", required=True, help="Parent directory fullName.")
+@click.option("--content", default=None, help="Inline file content.")
+@click.option("--content-file", default=None, type=click.Path(exists=True, dir_okay=False), help="Read content from a local file.")
+@click.option("--type", "resource_type", type=click.Choice(resources.RESOURCE_TYPES), default="FILE")
+@click.pass_obj
+def resource_create_file(
+    ctx: Context,
+    name: str,
+    current_dir: str,
+    content: Optional[str],
+    content_file: Optional[str],
+    resource_type: str,
+) -> None:
+    """Create a Resource Center file from text content."""
+    def body() -> None:
+        file_content = _read_content(content, content_file)
+        result = resources.create_file_from_content(
+            ctx.client,
+            name,
+            file_content,
+            current_dir,
+            resource_type=resource_type,
+        )
+        ctx.output.success(
+            f"Created resource file {name!r}",
+            data={"name": name, "currentDir": current_dir, "type": resource_type, "result": result},
+        )
+
+    _run(ctx, body)
+
+
+@resource.command("upload")
+@click.option("--path", "local_path", required=True, type=click.Path(exists=True, dir_okay=False), help="Local file to upload.")
+@click.option("--current-dir", required=True, help="Parent directory fullName.")
+@click.option("--name", default=None, help="Resource file name. Defaults to local basename.")
+@click.option("--type", "resource_type", type=click.Choice(resources.RESOURCE_TYPES), default="FILE")
+@click.pass_obj
+def resource_upload(
+    ctx: Context,
+    local_path: str,
+    current_dir: str,
+    name: Optional[str],
+    resource_type: str,
+) -> None:
+    """Upload a local file into Resource Center."""
+    def body() -> None:
+        resource_name = name or Path(local_path).name
+        result = resources.upload_file(
+            ctx.client,
+            local_path,
+            current_dir,
+            name=name,
+            resource_type=resource_type,
+        )
+        ctx.output.success(
+            f"Uploaded resource file {resource_name!r}",
+            data={"name": resource_name, "currentDir": current_dir, "type": resource_type, "result": result},
+        )
+
+    _run(ctx, body)
+
+
+@resource.command("view")
+@click.argument("full_name")
+@click.option("--skip-line-num", type=int, default=0)
+@click.option("--limit", type=int, default=100, help="Line limit; use -1 for all.")
+@click.pass_obj
+def resource_view(ctx: Context, full_name: str, skip_line_num: int, limit: int) -> None:
+    """View Resource Center text file content."""
+    def body() -> None:
+        result = resources.view_file(
+            ctx.client,
+            full_name,
+            skip_line_num=skip_line_num,
+            limit=limit,
+        )
+        if isinstance(result, dict):
+            ctx.output.status_block(result, title="Resource content", data=result)
+        else:
+            ctx.output.data(result)
+
+    _run(ctx, body)
+
+
+@resource.command("update-content")
+@click.argument("full_name")
+@click.option("--content", default=None, help="Inline replacement content.")
+@click.option("--content-file", default=None, type=click.Path(exists=True, dir_okay=False), help="Read replacement content from a local file.")
+@click.pass_obj
+def resource_update_content(
+    ctx: Context,
+    full_name: str,
+    content: Optional[str],
+    content_file: Optional[str],
+) -> None:
+    """Replace a Resource Center text file from inline or local content."""
+    def body() -> None:
+        file_content = _read_content(content, content_file)
+        result = resources.update_file_content(ctx.client, full_name, file_content)
+        ctx.output.success(
+            f"Updated resource file {full_name!r}",
+            data={"fullName": full_name, "result": result},
+        )
+
+    _run(ctx, body)
+
+
+@resource.command("replace")
+@click.argument("full_name")
+@click.option("--path", "local_path", required=True, type=click.Path(exists=True, dir_okay=False), help="Local file replacement.")
+@click.option("--name", default=None, help="New resource file name. Defaults to local basename.")
+@click.pass_obj
+def resource_replace(ctx: Context, full_name: str, local_path: str, name: Optional[str]) -> None:
+    """Replace a Resource Center file with a local file upload."""
+    def body() -> None:
+        resource_name = name or Path(local_path).name
+        result = resources.update_file(ctx.client, full_name, local_path, name=name)
+        ctx.output.success(
+            f"Replaced resource file {full_name!r}",
+            data={"fullName": full_name, "name": resource_name, "result": result},
+        )
+
+    _run(ctx, body)
+
+
+@resource.command("rename")
+@click.argument("full_name")
+@click.argument("name")
+@click.pass_obj
+def resource_rename(ctx: Context, full_name: str, name: str) -> None:
+    """Rename a Resource Center file or directory."""
+    def body() -> None:
+        result = resources.rename_resource(ctx.client, full_name, name)
+        ctx.output.success(
+            f"Renamed resource {full_name!r} to {name!r}",
+            data={"fullName": full_name, "name": name, "result": result},
+        )
+
+    _run(ctx, body)
+
+
+@resource.command("download")
+@click.argument("full_name")
+@click.option("--output", required=True, type=click.Path(dir_okay=False), help="Local output path.")
+@click.pass_obj
+def resource_download(ctx: Context, full_name: str, output: str) -> None:
+    """Download a Resource Center file or directory archive."""
+    def body() -> None:
+        payload = resources.download_resource(ctx.client, full_name)
+        output_path = Path(output)
+        output_path.write_bytes(payload)
+        ctx.output.success(
+            f"Downloaded resource to {output_path}",
+            data={"fullName": full_name, "output": str(output_path), "bytes": len(payload)},
+        )
+
+    _run(ctx, body)
+
+
+@resource.command("delete")
+@click.argument("full_name")
+@click.confirmation_option(prompt="Delete this Resource Center entry?")
+@click.pass_obj
+def resource_delete(ctx: Context, full_name: str) -> None:
+    """Delete a Resource Center file or directory."""
+    def body() -> None:
+        result = resources.delete_resource(ctx.client, full_name)
+        ctx.output.success(
+            f"Deleted resource {full_name!r}",
+            data={"fullName": full_name, "result": result},
+        )
+
+    _run(ctx, body)
+
+
 # ── run group (executors) ────────────────────────────────────────────────────
 
 
@@ -868,6 +1153,8 @@ def repl(ctx: Context) -> None:
             skin.help({
                 "project list|use|current|delete": "Project operations",
                 "task build-shell|build-python|build-sql|build-http|build-generic": "Build taskDefinitionJson",
+                "resource tree|list|mkdir|create-file|upload": "Resource Center files",
+                "resource view|update-content|replace|download|delete": "Resource file operations",
                 "workflow list|create-shell|release|delete": "Workflow definitions",
                 "run start|control": "Trigger and control runs",
                 "instance list|get|tasks|task-list": "Query workflow and task instances",
@@ -985,6 +1272,17 @@ def _parse_json_object(raw: str, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{label} must be a JSON object")
     return value
+
+
+def _read_content(content: Optional[str], content_file: Optional[str]) -> str:
+    """Return exactly one content source from CLI options."""
+    if content is not None and content_file is not None:
+        raise ValueError("pass either --content or --content-file, not both")
+    if content_file is not None:
+        return Path(content_file).read_text(encoding="utf-8")
+    if content is not None:
+        return content
+    raise ValueError("pass --content or --content-file")
 
 
 def _is_identifier(text: str) -> bool:

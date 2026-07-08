@@ -1,220 +1,166 @@
 ---
 name: cli-anything-dolphinscheduler
-description: Structured CLI for a running Apache DolphinScheduler server. Drive projects, workflow definitions, runs, instances, cron schedules, and access tokens through the real REST API. Use when the user wants to manage or automate DolphinScheduler workflows from the command line or programmatically with --json output.
+description: Use when the user wants an agent to install, configure, inspect, or operate Apache DolphinScheduler from Codex or a command line, including projects, Resource Center files, workflow definitions, task JSON, runs, instances, schedules, tokens, and --json automation against a real DolphinScheduler API server.
 ---
 
 # cli-anything-dolphinscheduler
 
-A command-line client to a **running** Apache DolphinScheduler API server. It maps
-each command to the server's REST API (the same one the web UI uses) — it does
-**not** reimplement scheduling. The server is a hard dependency.
+Command-line control for a running Apache DolphinScheduler API server. The CLI
+calls the real REST API; it does not simulate scheduling or fake success.
 
-## Prerequisites
+## First Decision
 
-- Python 3.8+
-- A reachable DolphinScheduler API server (default `http://localhost:12345/dolphinscheduler`)
-- Credentials: an access token, or a username + password
+| Situation | Action |
+|-----------|--------|
+| CLI missing | Run the auto-install command below |
+| CLI installed but no server config | Configure `DS_URL` plus `DS_TOKEN` or `DS_USER` / `DS_PASSWORD` |
+| Need machine parsing | Add root `--json` to every command |
+| Need files/scripts in DS | Use `resource ...` commands |
+| Need non-shell task JSON | Use `task build-python/sql/http/generic` |
+| Need to run a workflow | Ensure the workflow is `ONLINE`, then `run start` |
+| Need failure triage | Use `instance task-list` and `instance tasks` before mutation |
 
-## Installation
+## Install for Codex
+
+Run exactly once per machine:
 
 ```bash
-cd cli-anything-dolphinscheduler
-chmod +x install.sh
-./install.sh --dev --verify --install-skill --install-bin --force-installed-tests
+REPO_URL="git@github.com:ChenFatMan/cli-anything-dolphinscheduler.git"; INSTALL_DIR="${HOME}/.local/share/cli-anything-dolphinscheduler"; mkdir -p "$(dirname "$INSTALL_DIR")"; if [ -d "$INSTALL_DIR/.git" ]; then git -C "$INSTALL_DIR" pull --ff-only; else git clone "$REPO_URL" "$INSTALL_DIR"; fi && cd "$INSTALL_DIR" && chmod +x install.sh && ./install.sh --dev --verify --install-skill --install-bin --force-installed-tests
+```
+
+Use `cli-anything-dolphinscheduler` if it is in `PATH`; otherwise use:
+
+```bash
+~/.local/bin/cli-anything-dolphinscheduler --version
+```
+
+## Connect
+
+Preferred token auth:
+
+```bash
+export DS_URL=http://localhost:12345/dolphinscheduler
+export DS_TOKEN=<access-token>
+```
+
+Password auth:
+
+```bash
+export DS_URL=http://localhost:12345/dolphinscheduler
+export DS_USER=admin
+export DS_PASSWORD=dolphinscheduler123
 ```
 
 Verify:
-```bash
-cli-anything-dolphinscheduler --version
-```
-
-Manual install and usage details live in `INSTALL.md`.
-Chinese install and usage details live in `INSTALL.zh-CN.md`.
-
-## Connecting
-
-Config resolves from CLI flags > env vars > config file > defaults.
 
 ```bash
-# One-off with flags
-cli-anything-dolphinscheduler \
-  --url http://localhost:12345/dolphinscheduler \
-  --user admin --password dolphinscheduler123 \
-  project list
-
-# Or via environment variables
-export DS_URL=http://localhost:12345/dolphinscheduler
-export DS_TOKEN=<access-token>          # preferred: stateless token auth
-# (or DS_USER / DS_PASSWORD for session login)
-
-# Persist to ~/.cli-anything-dolphinscheduler/config.json
-cli-anything-dolphinscheduler --url ... --token ... config set
+cli-anything-dolphinscheduler login
+cli-anything-dolphinscheduler --json project list
 ```
-
-Auth uses the DolphinScheduler `token` HTTP header when a token is set, otherwise
-it logs in with user/password to obtain a session cookie.
 
 ## Command Groups
 
-| Group | Purpose |
-|-------|---------|
-| `project` | Create, list, select (persisted), delete projects |
-| `task` | Build taskDefinitionJson entries for workflow DAGs, including generic task plugins |
-| `workflow` | Create (from shell tasks), list, release ONLINE/OFFLINE, delete definitions |
-| `run` | Trigger a run, control a running instance (STOP/PAUSE/rerun) |
-| `instance` | List/delete workflow instances, inspect task instances, force-success or stop tasks |
-| `schedule` | Create and list cron schedules |
-| `token` | Create and list API access tokens |
-| `config` / `login` | Inspect/persist config, verify credentials |
+| Group | Covers |
+|-------|--------|
+| `project` | `create`, `list`, `use`, `current`, `delete` |
+| `resource` | `base-dir`, `tree`, `list`, `mkdir`, `create-file`, `upload`, `view`, `update-content`, `replace`, `rename`, `download`, `delete` |
+| `task` | `build-shell`, `build-python`, `build-sql`, `build-http`, `build-generic` |
+| `workflow` | `create-shell`, `list`, `release`, `delete` |
+| `run` | `start`, `control` |
+| `instance` | `list`, `get`, `tasks`, `task-list`, `force-task-success`, `stop-task`, `delete` |
+| `schedule` | `create`, `list` |
+| `token` | `create`, `list` |
 
-## Core Workflow: build and run a pipeline
+## Standard Agent Flow
 
 ```bash
-# 1. Select (or create) a project — persisted in the session
-cli-anything-dolphinscheduler project create "Analytics"
-cli-anything-dolphinscheduler project use "Analytics"
+cli-anything-dolphinscheduler --json project create "AgentProject"
+cli-anything-dolphinscheduler project use "AgentProject"
 
-# 2. Create a workflow from shell tasks.
-#    Task spec is 'name:script' with optional ':dep1,dep2' upstream deps.
 cli-anything-dolphinscheduler workflow create-shell \
-  --name "ETL" \
-  --task "extract:python extract.py" \
-  --task "transform:python transform.py:extract" \
-  --task "load:python load.py:transform" \
+  --name "agent_smoke" \
+  --task "hello:echo hello" \
   --online
 
-# Optional: build taskDefinitionJson entries directly for inspection or reuse
+cli-anything-dolphinscheduler --json run start "agent_smoke"
+cli-anything-dolphinscheduler --json instance task-list --state FAILURE
+```
+
+## Resource Center
+
+Always discover the base directory before creating files:
+
+```bash
+cli-anything-dolphinscheduler --json resource base-dir
+```
+
+Create files from inline or local content:
+
+```bash
+cli-anything-dolphinscheduler --json resource create-file \
+  --name hello.py \
+  --current-dir <directory-full-name> \
+  --content "print('hello')"
+
+cli-anything-dolphinscheduler --json resource upload \
+  --path ./job.py \
+  --current-dir <directory-full-name>
+```
+
+Inspect and mutate:
+
+```bash
+cli-anything-dolphinscheduler --json resource list --full-name <directory-full-name>
+cli-anything-dolphinscheduler --json resource view <file-full-name>
+cli-anything-dolphinscheduler --json resource update-content <file-full-name> --content-file ./job.py
+cli-anything-dolphinscheduler --json resource download <file-full-name> --output ./job.py
+cli-anything-dolphinscheduler --json resource delete <file-full-name> --yes
+```
+
+## Task JSON
+
+`workflow create-shell` is only a shortcut. For other task plugins, build
+`taskDefinitionJson` explicitly:
+
+```bash
 cli-anything-dolphinscheduler --json task build-python \
-  --name "extract" \
-  --script "print('extract')" \
+  --name py_task \
+  --script "print('ok')" \
   --code 1001
 
-cli-anything-dolphinscheduler --json task build-generic \
-  --name "spark_job" \
-  --task-type SPARK \
-  --params-json '{"mainClass":"org.example.Job"}' \
+cli-anything-dolphinscheduler --json task build-sql \
+  --name query_task \
+  --sql "select 1" \
+  --datasource 10 \
   --code 1002
 
-# 3. Trigger a run (must be ONLINE)
-cli-anything-dolphinscheduler run start "ETL"
-
-# 4. Watch workflow and task instances
-cli-anything-dolphinscheduler instance list --page-size 10
-cli-anything-dolphinscheduler instance get <instance-id>
-cli-anything-dolphinscheduler instance tasks <instance-id>
-cli-anything-dolphinscheduler instance task-list --workflow-instance-id <instance-id>
-
-# 5. Control a running workflow or task instance
-cli-anything-dolphinscheduler run control <instance-id> STOP
-cli-anything-dolphinscheduler instance stop-task <task-instance-id>
-```
-
-## Task Instance Troubleshooting
-
-```bash
-# Search failed tasks in the current project
-cli-anything-dolphinscheduler --json instance task-list --state FAILURE
-
-# Inspect tasks inside one workflow instance
-cli-anything-dolphinscheduler --json instance tasks <workflow-instance-id>
-
-# Mark a failed task as successful so recovery can proceed
-cli-anything-dolphinscheduler instance force-task-success <task-instance-id>
-```
-
-## Scheduling
-
-```bash
-# Create a cron schedule (Quartz 6/7-field expression) and activate it
-cli-anything-dolphinscheduler schedule create "ETL" \
-  --crontab "0 0 3 * * ? *" --online
-
-cli-anything-dolphinscheduler schedule list
-```
-
-## Task JSON Construction
-
-Use `task build-*` when an agent needs to inspect or assemble
-`taskDefinitionJson` explicitly instead of using the high-level
-`workflow create-shell` shortcut. Typed builders exist for SHELL, PYTHON, SQL,
-and HTTP. Use `task build-generic` for all other DolphinScheduler task plugins
-by passing explicit `taskType` and `taskParams` JSON.
-
-```bash
-# Offline construction with typed builders
-cli-anything-dolphinscheduler --json task build-shell \
-  --name extract --script "python extract.py" --code 1001
-cli-anything-dolphinscheduler --json task build-sql \
-  --name query --sql "select 1" --datasource 10 --code 1002
-cli-anything-dolphinscheduler --json task build-http \
-  --name health --url "https://example.com/health" --code 1003
-
-# Generic construction for plugin task types such as SPARK, FLINK, DATAX, K8S, etc.
 cli-anything-dolphinscheduler --json task build-generic \
-  --name spark_job --task-type SPARK \
-  --params-json '{"mainClass":"org.example.Job"}' --code 1004
-
-# Allocate a real code from the selected project, then render JSON
-cli-anything-dolphinscheduler --json task build-shell \
-  --name extract --script "python extract.py"
+  --name spark_job \
+  --task-type SPARK \
+  --params-json '{"mainClass":"org.example.Job"}' \
+  --code 1003
 ```
 
-## REPL
+Rules:
 
-Running with no subcommand enters an interactive session that keeps the selected
-project and connection between commands:
+- Pass `--code` for offline JSON construction.
+- Omit `--code` to allocate a real task code from the selected project.
+- Use `build-generic` for plugin types such as `SPARK`, `FLINK`, `DATAX`, `K8S`, and `SUB_PROCESS`.
+- Do not invent `taskParams`; they must match the real DolphinScheduler plugin schema.
 
-```bash
-cli-anything-dolphinscheduler
-dolphinscheduler ❯ project use Analytics
-dolphinscheduler ❯ workflow list
-dolphinscheduler ❯ run start ETL
-dolphinscheduler ❯ help
-dolphinscheduler ❯ quit
-```
+## Failure Handling
 
-## For AI Agents
+- Non-zero exit means failure.
+- With `--json`, errors are written to stderr as `{"success": false, "error": "...", "message": "..."}`.
+- `auth_error`: re-check token or username/password.
+- `network_error`: verify `DS_URL` and API server reachability.
+- `invalid_input`: fix CLI arguments before retrying.
+- `api_error`: DolphinScheduler rejected the request; use the server message.
 
-1. **Resolve the command first** — use `cli-anything-dolphinscheduler` when it is
-   in `PATH`; otherwise use `~/.local/bin/cli-anything-dolphinscheduler`, which
-   is installed by `./install.sh --install-bin`.
-2. **Always pass `--json`** for machine-readable output. Success responses are
-   `{"success": true, "data": ...}`; errors are `{"success": false, "error": "...", "message": "..."}` on **stderr** with a non-zero exit code.
-3. **Check the exit code** — non-zero means the command failed; parse stderr JSON
-   for the reason (`error` gives a stable code like `api_error`, `auth_error`,
-   `network_error`, `not_found`, `invalid_input`).
-4. **Select a project once** with `project use <name>`; later commands reuse it
-   from the session. Or pass `--project-code <code>` explicitly per command.
-5. **Reference projects and workflows by name or numeric code** — both resolve.
-6. **A workflow must be ONLINE before `run start`** — use `--online` at creation
-   or `workflow release <name>`.
-7. **Use `instance task-list` for failure triage** before mutating task state.
-   It supports filters for workflow instance, task name/code, executor, state,
-   host, date range, and `taskExecuteType`.
-8. **Use `task build-* --json` to inspect Task construction**. Pass `--code`
-   for offline JSON construction; omit `--code` to allocate the code from the
-   real DolphinScheduler API. Use `build-generic` when no typed builder exists.
+## Boundaries
 
-### JSON example
-
-```bash
-cli-anything-dolphinscheduler --json project list
-```
-```json
-{
-  "success": true,
-  "data": [
-    {"code": 12345678901234, "name": "Analytics", "userName": "admin"}
-  ]
-}
-```
-
-## Reference
-
-- `README.md` — full command reference and troubleshooting
-- `DOLPHINSCHEDULER.md` — complete REST API map for DolphinScheduler 3.4.2
-- `tests/TEST.md` — test plan and results
-
-## Version
-
-1.0.0
+- The CLI requires a reachable DolphinScheduler API server.
+- High-level workflow creation currently covers shell DAGs through `workflow create-shell`.
+- Non-shell task support exists through `task build-*` JSON builders.
+- Resource Center file and directory operations are supported, but task `resourceList` wiring must match DolphinScheduler's real taskParams shape.
+- Do not report a successful DS operation unless the CLI exits 0.

@@ -1,47 +1,40 @@
 # cli-anything-dolphinscheduler
 
-CLI-Anything harness for Apache DolphinScheduler. It gives AI agents and scripts
-a structured command-line interface to a running DolphinScheduler API server.
+CLI-Anything harness for Apache DolphinScheduler. It lets Codex and other AI
+agents call a running DolphinScheduler API server from the command line with
+machine-readable `--json` output.
 
-This CLI does not reimplement scheduling. It calls the real DolphinScheduler
-REST API, the same backend used by the web UI.
+This is not a scheduler reimplementation. Every operation goes through the real
+DolphinScheduler REST API, the same backend used by the web UI.
 
-## AI Auto-Install
+## Codex Auto-Install
 
-Give this command to an AI agent:
+Give this single command to Codex or another AI agent:
 
 ```bash
 REPO_URL="git@github.com:ChenFatMan/cli-anything-dolphinscheduler.git"; INSTALL_DIR="${HOME}/.local/share/cli-anything-dolphinscheduler"; mkdir -p "$(dirname "$INSTALL_DIR")"; if [ -d "$INSTALL_DIR/.git" ]; then git -C "$INSTALL_DIR" pull --ff-only; else git clone "$REPO_URL" "$INSTALL_DIR"; fi && cd "$INSTALL_DIR" && chmod +x install.sh && ./install.sh --dev --verify --install-skill --install-bin --force-installed-tests
 ```
 
-The command installs:
+It installs:
 
-- the executable `cli-anything-dolphinscheduler`
-- a stable launcher at `~/.local/bin/cli-anything-dolphinscheduler`
-- a local `.venv` under the cloned repository
-- the AI skill file under `~/.codex/skills` and `~/.agents/skills`
+- executable package in a local `.venv`
+- stable launcher: `~/.local/bin/cli-anything-dolphinscheduler`
+- Codex skill: `~/.codex/skills/cli-anything-dolphinscheduler/SKILL.md`
+- generic agent skill: `~/.agents/skills/cli-anything-dolphinscheduler/SKILL.md`
 
-Once installed, an agent can discover the skill and call the CLI directly.
+After that, a new Codex session can discover the skill and directly call
+`cli-anything-dolphinscheduler`.
 
-## Local Install
+## Connect to DolphinScheduler
 
-```bash
-git clone git@github.com:ChenFatMan/cli-anything-dolphinscheduler.git
-cd cli-anything-dolphinscheduler
-chmod +x install.sh
-./install.sh --dev --verify --install-skill --install-bin
-```
-
-## Configure DolphinScheduler
-
-Token auth:
+The API server must be reachable. Default local server:
 
 ```bash
 export DS_URL=http://localhost:12345/dolphinscheduler
 export DS_TOKEN=<access-token>
 ```
 
-Username/password:
+Username/password also works:
 
 ```bash
 export DS_URL=http://localhost:12345/dolphinscheduler
@@ -49,42 +42,61 @@ export DS_USER=admin
 export DS_PASSWORD=dolphinscheduler123
 ```
 
-## Basic Usage
+Verify:
 
 ```bash
+cli-anything-dolphinscheduler login
 cli-anything-dolphinscheduler --json project list
-cli-anything-dolphinscheduler project use <project-name-or-code>
-cli-anything-dolphinscheduler --json workflow list
 ```
 
-Create and run a simple workflow:
+## What Codex Can Do
+
+| Area | Commands |
+|------|----------|
+| Projects | `project create/list/use/current/delete` |
+| Resource Center | `resource base-dir/tree/list/mkdir/create-file/upload/view/update-content/replace/rename/download/delete` |
+| Task JSON | `task build-shell/build-python/build-sql/build-http/build-generic` |
+| Workflows | `workflow create-shell/list/release/delete` |
+| Runs | `run start/control` |
+| Instances | `instance list/get/tasks/task-list/force-task-success/stop-task/delete` |
+| Schedules | `schedule create/list` |
+| Tokens | `token create/list` |
+
+High-level workflow creation currently has a `workflow create-shell` shortcut.
+For non-shell tasks, build `taskDefinitionJson` with `task build-*`; use
+`task build-generic` for plugin types such as `SPARK`, `FLINK`, `DATAX`, `K8S`,
+and `SUB_PROCESS` by passing the exact DolphinScheduler `taskParams` JSON.
+
+## Common AI Flow
 
 ```bash
+cli-anything-dolphinscheduler --json project create "AgentProject"
+cli-anything-dolphinscheduler project use "AgentProject"
+
+BASE_DIR="$(cli-anything-dolphinscheduler --json resource base-dir | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["fullName"])')"
+
+cli-anything-dolphinscheduler --json resource create-file \
+  --name hello.py \
+  --current-dir "$BASE_DIR" \
+  --content "print('hello from DolphinScheduler')"
+
 cli-anything-dolphinscheduler workflow create-shell \
   --name "agent_smoke" \
   --task "hello:echo hello" \
   --online
 
 cli-anything-dolphinscheduler --json run start "agent_smoke"
+cli-anything-dolphinscheduler --json instance task-list --state FAILURE
 ```
 
-Build task JSON for non-shell task types:
+## Manual Install
 
 ```bash
-cli-anything-dolphinscheduler --json task build-python \
-  --name py_task \
-  --script "print('ok')" \
-  --code 1001
-
-cli-anything-dolphinscheduler --json task build-generic \
-  --name spark_job \
-  --task-type SPARK \
-  --params-json '{"mainClass":"org.example.Job"}' \
-  --code 1002
+git clone git@github.com:ChenFatMan/cli-anything-dolphinscheduler.git
+cd cli-anything-dolphinscheduler
+chmod +x install.sh
+./install.sh --dev --verify --install-skill --install-bin
 ```
-
-`task build-generic` is the escape hatch for any DolphinScheduler task plugin
-that does not yet have a typed builder.
 
 ## Documentation
 
@@ -100,3 +112,7 @@ source .venv/bin/activate
 python3 -m pytest cli_anything/dolphinscheduler/tests/test_core.py -v
 CLI_ANYTHING_FORCE_INSTALLED=1 python3 -m pytest cli_anything/dolphinscheduler/tests/test_subprocess.py -v
 ```
+
+## License
+
+MIT

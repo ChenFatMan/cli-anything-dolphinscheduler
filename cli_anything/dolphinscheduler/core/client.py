@@ -153,6 +153,53 @@ class DolphinSchedulerClient:
 
         return self._handle_response(response, raw=raw)
 
+    def download(
+        self,
+        path: str,
+        *,
+        params: Optional[dict[str, Any]] = None,
+        data: Optional[dict[str, Any]] = None,
+        authenticated: bool = True,
+    ) -> bytes:
+        """Issue a request whose success payload is binary content.
+
+        Resource downloads return an attachment instead of the normal
+        DolphinScheduler ``Result`` envelope. Error responses still use the
+        envelope, so we parse JSON bodies before returning raw bytes.
+        """
+        if authenticated:
+            self.ensure_authenticated()
+
+        url = self._build_url(path)
+        try:
+            response = self._session.request(
+                "GET",
+                url,
+                params=_drop_none(params),
+                data=_drop_none(data),
+                timeout=self._config.timeout,
+                verify=self._config.verify_tls,
+            )
+        except requests.RequestException as exc:
+            raise NetworkError(
+                f"Could not reach DolphinScheduler at {url}: {exc}"
+            ) from exc
+
+        if response.headers.get("Content-Type", "").startswith("application/json"):
+            self._handle_response(response, raw=False)
+            return b""
+        if response.status_code in (401, 403):
+            raise AuthError(
+                "Authentication failed or token expired (HTTP "
+                f"{response.status_code}). Re-check your token/credentials."
+            )
+        if response.status_code >= 400:
+            raise APIError(
+                f"HTTP {response.status_code} from {response.url}",
+                http_status=response.status_code,
+            )
+        return response.content
+
     def _build_url(self, path: str) -> str:
         return f"{self._config.base_url}/{path.lstrip('/')}"
 

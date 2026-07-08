@@ -235,6 +235,7 @@ if [[ "$RUN_VERIFY" -eq 1 ]]; then
   "$CLI_BIN" --version
   "$CLI_BIN" --help >/dev/null
   "$CLI_BIN" task --help >/dev/null
+  "$CLI_BIN" resource --help >/dev/null
   "$CLI_BIN" --json task build-shell \
     --name install_smoke \
     --script "echo install_smoke" \
