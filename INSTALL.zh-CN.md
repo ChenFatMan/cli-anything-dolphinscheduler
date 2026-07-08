@@ -4,6 +4,8 @@
 `~/.codex/skills/cli-anything-dolphinscheduler/SKILL.md` 的 skill，然后可以自己调用
 `cli-anything-dolphinscheduler` 连接真实 DolphinScheduler API。
 
+如果要把完整操作规程交给 AI 读，优先看 [Codex / AI Agent 使用手册](AGENT_USAGE.zh-CN.md)。
+
 前提只有两个：
 
 - DolphinScheduler API Server 可访问，例如 `http://localhost:12345/dolphinscheduler`

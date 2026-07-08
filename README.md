@@ -100,6 +100,7 @@ chmod +x install.sh
 
 ## Documentation
 
+- [中文 Agent 使用手册](AGENT_USAGE.zh-CN.md)
 - [中文安装与使用说明](INSTALL.zh-CN.md)
 - [English install guide](INSTALL.md)
 - [Full command reference](cli_anything/dolphinscheduler/README.md)

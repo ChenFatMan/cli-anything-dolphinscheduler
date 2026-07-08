@@ -8,6 +8,10 @@ description: Use when the user wants an agent to install, configure, inspect, or
 Command-line control for a running Apache DolphinScheduler API server. The CLI
 calls the real REST API; it does not simulate scheduling or fake success.
 
+If this skill is being read from the repository checkout, read
+`AGENT_USAGE.zh-CN.md` for the full Chinese agent runbook. This skill remains
+self-contained when installed under `~/.codex/skills`.
+
 ## First Decision
 
 | Situation | Action |

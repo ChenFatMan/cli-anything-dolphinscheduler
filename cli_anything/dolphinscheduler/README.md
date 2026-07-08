@@ -273,6 +273,7 @@ CLI_ANYTHING_FORCE_INSTALLED=1 python3 -m pytest cli_anything/dolphinscheduler/t
 
 ## References
 
+- [AGENT_USAGE.zh-CN.md](../../AGENT_USAGE.zh-CN.md) — Chinese Codex / AI agent runbook
 - [DOLPHINSCHEDULER.md](../../DOLPHINSCHEDULER.md) — REST API map
 - [tests/TEST.md](tests/TEST.md) — test plan and results
 - [Apache DolphinScheduler Docs](https://dolphinscheduler.apache.org/en-us/docs/latest)
