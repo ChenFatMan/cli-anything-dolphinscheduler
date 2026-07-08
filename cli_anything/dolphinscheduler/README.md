@@ -304,7 +304,7 @@ This CLI covers the essential DolphinScheduler REST API surface:
 - `/projects/{code}/schedules` — cron schedules
 - `/access-tokens` — API tokens
 
-For the complete API map, see [DOLPHINSCHEDULER.md](DOLPHINSCHEDULER.md).
+For the complete API map, see [DOLPHINSCHEDULER.md](../../DOLPHINSCHEDULER.md).
 
 ## Troubleshooting
 
@@ -328,7 +328,7 @@ Or pass `--project-code` on every command.
 
 ## References
 
-- [DOLPHINSCHEDULER.md](DOLPHINSCHEDULER.md) — Complete REST API map for DolphinScheduler 3.4.2
+- [DOLPHINSCHEDULER.md](../../DOLPHINSCHEDULER.md) — Complete REST API map for DolphinScheduler 3.4.2
 - [tests/TEST.md](tests/TEST.md) — Test plan and results
 - [Apache DolphinScheduler Docs](https://dolphinscheduler.apache.org/en-us/docs/latest)
 

@@ -9,10 +9,10 @@
 
 ## 给 AI 自动安装的一条命令
 
-GitHub 仓库创建后，把 `<OWNER>` 换成真实 GitHub 用户或组织名：
+把下面这条命令交给 AI agent 执行即可：
 
 ```bash
-REPO_URL="https://github.com/<OWNER>/cli-anything-dolphinscheduler.git"; INSTALL_DIR="${HOME}/.local/share/cli-anything-dolphinscheduler"; mkdir -p "$(dirname "$INSTALL_DIR")"; if [ -d "$INSTALL_DIR/.git" ]; then git -C "$INSTALL_DIR" pull --ff-only; else git clone "$REPO_URL" "$INSTALL_DIR"; fi && cd "$INSTALL_DIR" && chmod +x install.sh && ./install.sh --dev --verify --install-skill --install-bin --force-installed-tests
+REPO_URL="git@github.com:ChenFatMan/cli-anything-dolphinscheduler.git"; INSTALL_DIR="${HOME}/.local/share/cli-anything-dolphinscheduler"; mkdir -p "$(dirname "$INSTALL_DIR")"; if [ -d "$INSTALL_DIR/.git" ]; then git -C "$INSTALL_DIR" pull --ff-only; else git clone "$REPO_URL" "$INSTALL_DIR"; fi && cd "$INSTALL_DIR" && chmod +x install.sh && ./install.sh --dev --verify --install-skill --install-bin --force-installed-tests
 ```
 
 同一条命令保存在：
@@ -209,10 +209,10 @@ python3 -m pytest -m e2e cli_anything/dolphinscheduler/tests/test_full_e2e.py -v
 
 ## 推送到 GitHub
 
-见 [GITHUB.md](GITHUB.md) 或 [PUBLISH.zh-CN.md](PUBLISH.zh-CN.md)。需要一个真实的 GitHub remote URL，例如：
+仓库地址：
 
 ```text
-git@github.com:<owner>/cli-anything-dolphinscheduler.git
+git@github.com:ChenFatMan/cli-anything-dolphinscheduler.git
 ```
 
 ## 卸载

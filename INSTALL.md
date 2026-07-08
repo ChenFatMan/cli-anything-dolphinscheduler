@@ -8,10 +8,10 @@ scheduling.
 
 ## AI Auto-Install Command
 
-After this repository exists on GitHub, replace `<OWNER>` with the real GitHub owner:
+Give this command to an AI agent:
 
 ```bash
-REPO_URL="https://github.com/<OWNER>/cli-anything-dolphinscheduler.git"; INSTALL_DIR="${HOME}/.local/share/cli-anything-dolphinscheduler"; mkdir -p "$(dirname "$INSTALL_DIR")"; if [ -d "$INSTALL_DIR/.git" ]; then git -C "$INSTALL_DIR" pull --ff-only; else git clone "$REPO_URL" "$INSTALL_DIR"; fi && cd "$INSTALL_DIR" && chmod +x install.sh && ./install.sh --dev --verify --install-skill --install-bin --force-installed-tests
+REPO_URL="git@github.com:ChenFatMan/cli-anything-dolphinscheduler.git"; INSTALL_DIR="${HOME}/.local/share/cli-anything-dolphinscheduler"; mkdir -p "$(dirname "$INSTALL_DIR")"; if [ -d "$INSTALL_DIR/.git" ]; then git -C "$INSTALL_DIR" pull --ff-only; else git clone "$REPO_URL" "$INSTALL_DIR"; fi && cd "$INSTALL_DIR" && chmod +x install.sh && ./install.sh --dev --verify --install-skill --install-bin --force-installed-tests
 ```
 
 This installs:
@@ -114,7 +114,7 @@ not in `PATH`, call `~/.local/bin/cli-anything-dolphinscheduler`.
 
 ## GitHub
 
-Standalone repository and push instructions: [GITHUB.md](GITHUB.md).
+Repository: `git@github.com:ChenFatMan/cli-anything-dolphinscheduler.git`.
 
 ## Uninstall
 

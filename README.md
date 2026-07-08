@@ -8,11 +8,10 @@ REST API, the same backend used by the web UI.
 
 ## AI Auto-Install
 
-After publishing this repository to GitHub, replace `<OWNER>` and give this
-command to an AI agent:
+Give this command to an AI agent:
 
 ```bash
-REPO_URL="https://github.com/<OWNER>/cli-anything-dolphinscheduler.git"; INSTALL_DIR="${HOME}/.local/share/cli-anything-dolphinscheduler"; mkdir -p "$(dirname "$INSTALL_DIR")"; if [ -d "$INSTALL_DIR/.git" ]; then git -C "$INSTALL_DIR" pull --ff-only; else git clone "$REPO_URL" "$INSTALL_DIR"; fi && cd "$INSTALL_DIR" && chmod +x install.sh && ./install.sh --dev --verify --install-skill --install-bin --force-installed-tests
+REPO_URL="git@github.com:ChenFatMan/cli-anything-dolphinscheduler.git"; INSTALL_DIR="${HOME}/.local/share/cli-anything-dolphinscheduler"; mkdir -p "$(dirname "$INSTALL_DIR")"; if [ -d "$INSTALL_DIR/.git" ]; then git -C "$INSTALL_DIR" pull --ff-only; else git clone "$REPO_URL" "$INSTALL_DIR"; fi && cd "$INSTALL_DIR" && chmod +x install.sh && ./install.sh --dev --verify --install-skill --install-bin --force-installed-tests
 ```
 
 The command installs:
@@ -27,7 +26,7 @@ Once installed, an agent can discover the skill and call the CLI directly.
 ## Local Install
 
 ```bash
-git clone https://github.com/<OWNER>/cli-anything-dolphinscheduler.git
+git clone git@github.com:ChenFatMan/cli-anything-dolphinscheduler.git
 cd cli-anything-dolphinscheduler
 chmod +x install.sh
 ./install.sh --dev --verify --install-skill --install-bin
@@ -91,7 +90,6 @@ that does not yet have a typed builder.
 
 - [中文安装与使用说明](INSTALL.zh-CN.md)
 - [English install guide](INSTALL.md)
-- [GitHub 发布说明](PUBLISH.zh-CN.md)
 - [Full command reference](cli_anything/dolphinscheduler/README.md)
 - [AI skill](skills/cli-anything-dolphinscheduler/SKILL.md)
 

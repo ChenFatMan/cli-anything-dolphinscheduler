@@ -30,7 +30,6 @@ cli-anything-dolphinscheduler --version
 
 Manual install and usage details live in `INSTALL.md`.
 Chinese install and usage details live in `INSTALL.zh-CN.md`.
-GitHub publishing details live in `PUBLISH.zh-CN.md`.
 
 ## Connecting
 
@@ -176,20 +175,23 @@ dolphinscheduler ❯ quit
 
 ## For AI Agents
 
-1. **Always pass `--json`** for machine-readable output. Success responses are
+1. **Resolve the command first** — use `cli-anything-dolphinscheduler` when it is
+   in `PATH`; otherwise use `~/.local/bin/cli-anything-dolphinscheduler`, which
+   is installed by `./install.sh --install-bin`.
+2. **Always pass `--json`** for machine-readable output. Success responses are
    `{"success": true, "data": ...}`; errors are `{"success": false, "error": "...", "message": "..."}` on **stderr** with a non-zero exit code.
-2. **Check the exit code** — non-zero means the command failed; parse stderr JSON
+3. **Check the exit code** — non-zero means the command failed; parse stderr JSON
    for the reason (`error` gives a stable code like `api_error`, `auth_error`,
    `network_error`, `not_found`, `invalid_input`).
-3. **Select a project once** with `project use <name>`; later commands reuse it
+4. **Select a project once** with `project use <name>`; later commands reuse it
    from the session. Or pass `--project-code <code>` explicitly per command.
-4. **Reference projects and workflows by name or numeric code** — both resolve.
-5. **A workflow must be ONLINE before `run start`** — use `--online` at creation
+5. **Reference projects and workflows by name or numeric code** — both resolve.
+6. **A workflow must be ONLINE before `run start`** — use `--online` at creation
    or `workflow release <name>`.
-6. **Use `instance task-list` for failure triage** before mutating task state.
+7. **Use `instance task-list` for failure triage** before mutating task state.
    It supports filters for workflow instance, task name/code, executor, state,
    host, date range, and `taskExecuteType`.
-7. **Use `task build-* --json` to inspect Task construction**. Pass `--code`
+8. **Use `task build-* --json` to inspect Task construction**. Pass `--code`
    for offline JSON construction; omit `--code` to allocate the code from the
    real DolphinScheduler API. Use `build-generic` when no typed builder exists.
 

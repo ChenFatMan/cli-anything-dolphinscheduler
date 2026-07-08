@@ -25,7 +25,7 @@ setup(
     description="Structured CLI harness for Apache DolphinScheduler",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/your-org/cli-anything-dolphinscheduler",
+    url="https://github.com/ChenFatMan/cli-anything-dolphinscheduler",
     packages=find_namespace_packages(include=["cli_anything.*"]),
     package_data={
         "cli_anything.dolphinscheduler": ["skills/*.md", "README.md"],
