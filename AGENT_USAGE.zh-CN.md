@@ -56,6 +56,65 @@ cli-anything-dolphinscheduler task --help
 ~/.local/bin/cli-anything-dolphinscheduler --version
 ```
 
+## 安装给不同 Agent 宿主
+
+默认安装：
+
+```bash
+./install.sh --dev --verify --install-skill --install-bin --force-installed-tests
+```
+
+会写入：
+
+```text
+~/.codex/skills/cli-anything-dolphinscheduler/SKILL.md
+~/.agents/skills/cli-anything-dolphinscheduler/SKILL.md
+```
+
+Claude Code 个人 skill：
+
+```bash
+./install.sh --dev --verify --install-bin --install-skill --skill-dir ~/.claude/skills
+```
+
+Claude Code 项目内 skill：
+
+```bash
+./install.sh --verify --install-skill --skill-dir .claude/skills
+```
+
+OpenClaw 全局 skill：
+
+```bash
+./install.sh --dev --verify --install-bin --install-skill --skill-dir ~/.openclaw/skills
+```
+
+OpenClaw 当前 workspace skill：
+
+```bash
+./install.sh --verify --install-skill --skill-dir ./skills
+```
+
+OpenClaw CLI 安装方式：
+
+```bash
+openclaw skills install ./skills/cli-anything-dolphinscheduler \
+  --as cli-anything-dolphinscheduler \
+  --global
+```
+
+通用 Agent：
+
+```bash
+./install.sh --verify --install-skill --skill-dir <skills-root>
+```
+
+通用路径约定：
+
+```text
+<skills-root>/cli-anything-dolphinscheduler/SKILL.md
+```
+
 ## 连接配置
 
 优先使用 token：

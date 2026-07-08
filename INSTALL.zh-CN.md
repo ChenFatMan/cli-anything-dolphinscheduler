@@ -36,6 +36,53 @@ chmod +x install.sh
 ./install.sh --dev --verify --install-skill --install-bin --force-installed-tests
 ```
 
+## 安装给 Claude / OpenClaw / 其他 Agent
+
+默认 `--install-skill` 会安装到：
+
+```text
+~/.codex/skills/cli-anything-dolphinscheduler/SKILL.md
+~/.agents/skills/cli-anything-dolphinscheduler/SKILL.md
+```
+
+安装给 Claude Code 个人 skill：
+
+```bash
+./install.sh --dev --verify --install-bin --install-skill --skill-dir ~/.claude/skills
+```
+
+安装给当前项目的 Claude Code skill：
+
+```bash
+./install.sh --verify --install-skill --skill-dir .claude/skills
+```
+
+安装给 OpenClaw 全局 skill root：
+
+```bash
+./install.sh --dev --verify --install-bin --install-skill --skill-dir ~/.openclaw/skills
+```
+
+安装给 OpenClaw 当前 workspace 的 `skills/`：
+
+```bash
+./install.sh --verify --install-skill --skill-dir ./skills
+```
+
+如果本机有 OpenClaw CLI，也可以在 clone 后直接安装 skill：
+
+```bash
+openclaw skills install ./skills/cli-anything-dolphinscheduler \
+  --as cli-anything-dolphinscheduler \
+  --global
+```
+
+通用规则：只要某个 Agent 读取 `<skills-root>/<skill-name>/SKILL.md`，就用：
+
+```bash
+./install.sh --verify --install-skill --skill-dir <skills-root>
+```
+
 ## 手动安装
 
 ```bash

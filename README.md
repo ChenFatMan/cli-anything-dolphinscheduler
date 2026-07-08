@@ -25,6 +25,35 @@ It installs:
 After that, a new Codex session can discover the skill and directly call
 `cli-anything-dolphinscheduler`.
 
+## Other Agent Installs
+
+The default `--install-skill` target installs to Codex and the generic agents
+root. For other agent hosts, pass an explicit `--skill-dir`:
+
+```bash
+# Claude Code personal skill
+./install.sh --dev --verify --install-bin --install-skill --skill-dir ~/.claude/skills
+
+# Claude Code project-local skill
+./install.sh --verify --install-skill --skill-dir .claude/skills
+
+# OpenClaw global skill root
+./install.sh --dev --verify --install-bin --install-skill --skill-dir ~/.openclaw/skills
+
+# OpenClaw workspace-local skill root from a workspace directory
+./install.sh --verify --install-skill --skill-dir ./skills
+
+# Any other agent that reads <skills-root>/<skill-name>/SKILL.md
+./install.sh --verify --install-skill --skill-dir <skills-root>
+```
+
+If the OpenClaw CLI is available, installing the skill directly from the local
+skill directory is also valid after cloning this repo:
+
+```bash
+openclaw skills install ./skills/cli-anything-dolphinscheduler --as cli-anything-dolphinscheduler --global
+```
+
 ## Connect to DolphinScheduler
 
 The API server must be reachable. Default local server:

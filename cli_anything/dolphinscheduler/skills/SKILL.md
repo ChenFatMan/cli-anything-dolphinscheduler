@@ -32,6 +32,19 @@ Run exactly once per machine:
 REPO_URL="git@github.com:ChenFatMan/cli-anything-dolphinscheduler.git"; INSTALL_DIR="${HOME}/.local/share/cli-anything-dolphinscheduler"; mkdir -p "$(dirname "$INSTALL_DIR")"; if [ -d "$INSTALL_DIR/.git" ]; then git -C "$INSTALL_DIR" pull --ff-only; else git clone "$REPO_URL" "$INSTALL_DIR"; fi && cd "$INSTALL_DIR" && chmod +x install.sh && ./install.sh --dev --verify --install-skill --install-bin --force-installed-tests
 ```
 
+Other hosts from the repository root:
+
+```bash
+# Claude Code personal skill
+./install.sh --verify --install-skill --skill-dir ~/.claude/skills
+
+# OpenClaw global skill root
+./install.sh --verify --install-skill --skill-dir ~/.openclaw/skills
+
+# Any host that reads <skills-root>/<skill-name>/SKILL.md
+./install.sh --verify --install-skill --skill-dir <skills-root>
+```
+
 Use `cli-anything-dolphinscheduler` if it is in `PATH`; otherwise use:
 
 ```bash

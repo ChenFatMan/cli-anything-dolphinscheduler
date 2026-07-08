@@ -23,6 +23,53 @@ This installs:
 
 The same command is stored in `AI_INSTALL_COMMAND.txt`.
 
+## Claude / OpenClaw / Other Agent Hosts
+
+Default `--install-skill` installs to:
+
+```text
+~/.codex/skills/cli-anything-dolphinscheduler/SKILL.md
+~/.agents/skills/cli-anything-dolphinscheduler/SKILL.md
+```
+
+Claude Code personal skill:
+
+```bash
+./install.sh --dev --verify --install-bin --install-skill --skill-dir ~/.claude/skills
+```
+
+Claude Code project-local skill:
+
+```bash
+./install.sh --verify --install-skill --skill-dir .claude/skills
+```
+
+OpenClaw global skill root:
+
+```bash
+./install.sh --dev --verify --install-bin --install-skill --skill-dir ~/.openclaw/skills
+```
+
+OpenClaw workspace-local `skills/` directory:
+
+```bash
+./install.sh --verify --install-skill --skill-dir ./skills
+```
+
+If the OpenClaw CLI is available after cloning this repo:
+
+```bash
+openclaw skills install ./skills/cli-anything-dolphinscheduler \
+  --as cli-anything-dolphinscheduler \
+  --global
+```
+
+Generic rule: if an agent reads `<skills-root>/<skill-name>/SKILL.md`, use:
+
+```bash
+./install.sh --verify --install-skill --skill-dir <skills-root>
+```
+
 ## Manual Install
 
 ```bash

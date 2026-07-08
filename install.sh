@@ -40,6 +40,8 @@ Examples:
   ./install.sh --verify
   ./install.sh --dev --verify --install-skill --install-bin --force-installed-tests
   ./install.sh --install-skill --skill-dir ~/.codex/skills --verify
+  ./install.sh --install-skill --skill-dir ~/.claude/skills --verify
+  ./install.sh --install-skill --skill-dir ~/.openclaw/skills --verify
   PYTHON=/path/to/python ./install.sh --venv .venv --verify
   ./install.sh --system --user --verify
 EOF
