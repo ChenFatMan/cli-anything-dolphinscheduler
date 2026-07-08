@@ -20,6 +20,8 @@ DEFAULT_TIMEZONE = "Asia/Shanghai"
 # Far-future default so a schedule stays active unless the caller sets bounds.
 _DEFAULT_START = "2020-01-01 00:00:00"
 _DEFAULT_END = "2100-01-01 00:00:00"
+DEFAULT_START_TIME = _DEFAULT_START
+DEFAULT_END_TIME = _DEFAULT_END
 
 
 def _schedule_base(project_code: int) -> str:

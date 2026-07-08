@@ -27,7 +27,18 @@ from typing import Any, Optional
 
 import click
 
-from .core import executors, instances, projects, resources, schedules, tasks, tokens, workflows
+from .core import (
+    datasources,
+    executors,
+    instances,
+    logs,
+    projects,
+    resources,
+    schedules,
+    tasks,
+    tokens,
+    workflows,
+)
 from .core.client import DolphinSchedulerClient
 from .core.config import ClientConfig, load_config, save_config
 from .core.errors import DolphinSchedulerError
@@ -167,7 +178,7 @@ def login_cmd(ctx: Context) -> None:
 
 @cli.group()
 def project() -> None:
-    """Create, list, and select projects."""
+    """Create, list, get, select, update, and delete projects."""
 
 
 @project.command("create")
@@ -198,6 +209,22 @@ def project_list(ctx: Context, search: Optional[str]) -> None:
     _run(ctx, body)
 
 
+@project.command("get")
+@click.argument("name_or_code")
+@click.pass_obj
+def project_get(ctx: Context, name_or_code: str) -> None:
+    """Show project detail by name or code."""
+    def body() -> None:
+        code = projects.resolve_project_code(ctx.client, name_or_code)
+        detail = projects.get_project(ctx.client, code)
+        if isinstance(detail, dict):
+            ctx.output.status_block(detail, title="Project", data=detail)
+        else:
+            ctx.output.data(detail)
+
+    _run(ctx, body)
+
+
 @project.command("use")
 @click.argument("name_or_code")
 @click.pass_obj
@@ -223,6 +250,32 @@ def project_current(ctx: Context) -> None:
     """Show the currently selected project."""
     data = {"project_code": ctx.session.project_code, "project_name": ctx.session.project_name}
     ctx.output.status_block(data, title="Current project", data=data)
+
+
+@project.command("update")
+@click.argument("name_or_code")
+@click.option("--name", required=True, help="New project name.")
+@click.option("--description", default=None, help="New project description.")
+@click.pass_obj
+def project_update(
+    ctx: Context,
+    name_or_code: str,
+    name: str,
+    description: Optional[str],
+) -> None:
+    """Rename a project or update its description."""
+    def body() -> None:
+        code = projects.resolve_project_code(ctx.client, name_or_code)
+        result = projects.update_project(ctx.client, code, name, description)
+        if ctx.session.project_code == code:
+            ctx.session.select_project(code, name)
+            ctx.session.save()
+        ctx.output.success(
+            f"Updated project {code}",
+            data=result if result is not None else {"project_code": code},
+        )
+
+    _run(ctx, body)
 
 
 @project.command("delete")
@@ -794,6 +847,211 @@ def resource_delete(ctx: Context, full_name: str) -> None:
     _run(ctx, body)
 
 
+# ── datasource group ────────────────────────────────────────────────────────
+
+
+@cli.group()
+def datasource() -> None:
+    """Manage datasource definitions and inspect database metadata."""
+
+
+@datasource.command("list")
+@click.option("--type", "datasource_type", default=None, help="DbType filter, e.g. MYSQL or POSTGRESQL.")
+@click.option("--search", "search_val", default=None, help="Name search for paged listing.")
+@click.option("--page-no", type=int, default=1)
+@click.option("--page-size", type=int, default=20)
+@click.pass_obj
+def datasource_list(
+    ctx: Context,
+    datasource_type: Optional[str],
+    search_val: Optional[str],
+    page_no: int,
+    page_size: int,
+) -> None:
+    """List visible datasources."""
+    def body() -> None:
+        if datasource_type:
+            result = datasources.list_datasources_by_type(ctx.client, datasource_type)
+            items = result if isinstance(result, list) else []
+        else:
+            result = datasources.list_datasources(
+                ctx.client,
+                search_val=search_val,
+                page_no=page_no,
+                page_size=page_size,
+            )
+            items = _page_items(result)
+        rows = [
+            [
+                item.get("id"),
+                item.get("name"),
+                item.get("type"),
+                item.get("userName") or item.get("user"),
+                item.get("database"),
+            ]
+            for item in items
+        ]
+        ctx.output.table(["id", "name", "type", "user", "database"], rows, data=result)
+
+    _run(ctx, body)
+
+
+@datasource.command("get")
+@click.argument("datasource_id", type=int)
+@click.pass_obj
+def datasource_get(ctx: Context, datasource_id: int) -> None:
+    """Show one datasource definition."""
+    def body() -> None:
+        detail = datasources.get_datasource(ctx.client, datasource_id)
+        if isinstance(detail, dict):
+            ctx.output.status_block(detail, title="Datasource", data=detail)
+        else:
+            ctx.output.data(detail)
+
+    _run(ctx, body)
+
+
+@datasource.command("create")
+@click.option("--param-json", default=None, help="Datasource parameter JSON object.")
+@click.option("--param-file", type=click.Path(exists=True, dir_okay=False), default=None)
+@click.pass_obj
+def datasource_create(ctx: Context, param_json: Optional[str], param_file: Optional[str]) -> None:
+    """Create a datasource from native DolphinScheduler datasource JSON."""
+    def body() -> None:
+        payload = _read_json_object_option(param_json, param_file, "datasource param")
+        result = datasources.create_datasource(ctx.client, payload)
+        ctx.output.success("Created datasource", data=result)
+
+    _run(ctx, body)
+
+
+@datasource.command("update")
+@click.argument("datasource_id", type=int)
+@click.option("--param-json", default=None, help="Datasource parameter JSON object.")
+@click.option("--param-file", type=click.Path(exists=True, dir_okay=False), default=None)
+@click.pass_obj
+def datasource_update(
+    ctx: Context,
+    datasource_id: int,
+    param_json: Optional[str],
+    param_file: Optional[str],
+) -> None:
+    """Update a datasource from native DolphinScheduler datasource JSON."""
+    def body() -> None:
+        payload = _read_json_object_option(param_json, param_file, "datasource param")
+        result = datasources.update_datasource(ctx.client, datasource_id, payload)
+        ctx.output.success(f"Updated datasource {datasource_id}", data=result)
+
+    _run(ctx, body)
+
+
+@datasource.command("test-param")
+@click.option("--param-json", default=None, help="Datasource parameter JSON object.")
+@click.option("--param-file", type=click.Path(exists=True, dir_okay=False), default=None)
+@click.pass_obj
+def datasource_test_param(ctx: Context, param_json: Optional[str], param_file: Optional[str]) -> None:
+    """Test datasource parameters before saving them."""
+    def body() -> None:
+        payload = _read_json_object_option(param_json, param_file, "datasource param")
+        result = datasources.test_datasource_param(ctx.client, payload)
+        ctx.output.success("Datasource parameter connection test succeeded", data=result)
+
+    _run(ctx, body)
+
+
+@datasource.command("test")
+@click.argument("datasource_id", type=int)
+@click.pass_obj
+def datasource_test(ctx: Context, datasource_id: int) -> None:
+    """Test an existing datasource connection."""
+    def body() -> None:
+        result = datasources.test_datasource(ctx.client, datasource_id)
+        ctx.output.success(f"Datasource {datasource_id} connection test succeeded", data=result)
+
+    _run(ctx, body)
+
+
+@datasource.command("delete")
+@click.argument("datasource_id", type=int)
+@click.confirmation_option(prompt="Delete this datasource?")
+@click.pass_obj
+def datasource_delete(ctx: Context, datasource_id: int) -> None:
+    """Delete a datasource."""
+    def body() -> None:
+        result = datasources.delete_datasource(ctx.client, datasource_id)
+        ctx.output.success(
+            f"Deleted datasource {datasource_id}",
+            data={"datasource_id": datasource_id, "result": result},
+        )
+
+    _run(ctx, body)
+
+
+@datasource.command("verify-name")
+@click.argument("name")
+@click.pass_obj
+def datasource_verify_name(ctx: Context, name: str) -> None:
+    """Verify whether a datasource name is available."""
+    def body() -> None:
+        result = datasources.verify_name(ctx.client, name)
+        ctx.output.success(f"Datasource name {name!r} is available", data=result)
+
+    _run(ctx, body)
+
+
+@datasource.command("kerberos-state")
+@click.pass_obj
+def datasource_kerberos_state(ctx: Context) -> None:
+    """Show datasource/resource Kerberos startup state."""
+    def body() -> None:
+        result = datasources.kerberos_startup_state(ctx.client)
+        ctx.output.status_block({"kerberosStartupState": result}, title="Kerberos", data=result)
+
+    _run(ctx, body)
+
+
+@datasource.command("databases")
+@click.argument("datasource_id", type=int)
+@click.pass_obj
+def datasource_databases(ctx: Context, datasource_id: int) -> None:
+    """List databases visible through a datasource."""
+    def body() -> None:
+        result = datasources.list_databases(ctx.client, datasource_id)
+        rows = [[_option_label(item), _option_value(item)] for item in _as_list(result)]
+        ctx.output.table(["label", "value"], rows, data=result)
+
+    _run(ctx, body)
+
+
+@datasource.command("tables")
+@click.argument("datasource_id", type=int)
+@click.argument("database")
+@click.pass_obj
+def datasource_tables(ctx: Context, datasource_id: int, database: str) -> None:
+    """List tables in one datasource database."""
+    def body() -> None:
+        result = datasources.list_tables(ctx.client, datasource_id, database)
+        rows = [[_option_label(item), _option_value(item)] for item in _as_list(result)]
+        ctx.output.table(["label", "value"], rows, data=result)
+
+    _run(ctx, body)
+
+
+@datasource.command("columns")
+@click.argument("datasource_id", type=int)
+@click.argument("database")
+@click.argument("table_name")
+@click.pass_obj
+def datasource_columns(ctx: Context, datasource_id: int, database: str, table_name: str) -> None:
+    """List columns for one datasource table."""
+    def body() -> None:
+        result = datasources.list_table_columns(ctx.client, datasource_id, database, table_name)
+        rows = [[_option_label(item), _option_value(item)] for item in _as_list(result)]
+        ctx.output.table(["label", "value"], rows, data=result)
+
+    _run(ctx, body)
+
+
 # ── run group (executors) ────────────────────────────────────────────────────
 
 
@@ -816,6 +1074,52 @@ def run_start(ctx: Context, name_or_code: str, project_code: Optional[int], dry_
         ctx.output.success(
             f"Triggered workflow {code}" + (" (dry run)" if dry_run else ""),
             data={"workflow_code": code, "instance_ids": ids},
+        )
+
+    _run(ctx, body)
+
+
+@run.command("backfill")
+@click.argument("name_or_code")
+@click.option("--start-date", required=True, help="'yyyy-MM-dd HH:mm:ss' complement start.")
+@click.option("--end-date", required=True, help="'yyyy-MM-dd HH:mm:ss' complement end.")
+@click.option("--project-code", type=int, default=None)
+@click.option("--run-mode", type=click.Choice(executors.RUN_MODES), default=None)
+@click.option("--expected-parallelism-number", type=int, default=None)
+@click.option("--dry-run", is_flag=True, default=False)
+@click.pass_obj
+def run_backfill(
+    ctx: Context,
+    name_or_code: str,
+    start_date: str,
+    end_date: str,
+    project_code: Optional[int],
+    run_mode: Optional[str],
+    expected_parallelism_number: Optional[int],
+    dry_run: bool,
+) -> None:
+    """Run complement-data/backfill for a workflow date range."""
+    def body() -> None:
+        pcode = ctx.resolve_project(project_code)
+        code = workflows.resolve_workflow_code(ctx.client, pcode, name_or_code)
+        ids = executors.backfill_workflow(
+            ctx.client,
+            pcode,
+            code,
+            start_date,
+            end_date,
+            run_mode=run_mode,
+            expected_parallelism_number=expected_parallelism_number,
+            dry_run=dry_run,
+        )
+        ctx.output.success(
+            f"Backfill triggered for workflow {code}" + (" (dry run)" if dry_run else ""),
+            data={
+                "workflow_code": code,
+                "start_date": start_date,
+                "end_date": end_date,
+                "instance_ids": ids,
+            },
         )
 
     _run(ctx, body)
@@ -1045,6 +1349,64 @@ def instance_stop_task(
     _run(ctx, body)
 
 
+# ── log group ────────────────────────────────────────────────────────────────
+
+
+@cli.group()
+def log() -> None:
+    """Read and download task-instance logs."""
+
+
+@log.command("detail")
+@click.argument("task_instance_id", type=int)
+@click.option("--skip-line-num", type=int, default=0)
+@click.option("--limit", type=int, default=100)
+@click.pass_obj
+def log_detail(ctx: Context, task_instance_id: int, skip_line_num: int, limit: int) -> None:
+    """Query task log content."""
+    def body() -> None:
+        result = logs.query_task_log(
+            ctx.client,
+            task_instance_id,
+            skip_line_num=skip_line_num,
+            limit=limit,
+        )
+        if ctx.output.json_mode:
+            ctx.output.data(result)
+            return
+        if isinstance(result, dict) and "message" in result:
+            click.echo(result["message"])
+        elif isinstance(result, dict):
+            ctx.output.status_block(result, title="Task log", data=result)
+        else:
+            click.echo(result)
+
+    _run(ctx, body)
+
+
+@log.command("download")
+@click.argument("task_instance_id", type=int)
+@click.option("--output", required=True, type=click.Path(dir_okay=False), help="Local output path.")
+@click.pass_obj
+def log_download(ctx: Context, task_instance_id: int, output: str) -> None:
+    """Download the full task log to a local file."""
+    def body() -> None:
+        content = logs.download_task_log(ctx.client, task_instance_id)
+        output_path = Path(output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(content)
+        ctx.output.success(
+            f"Downloaded task log to {output_path}",
+            data={
+                "task_instance_id": task_instance_id,
+                "output": str(output_path),
+                "bytes": len(content),
+            },
+        )
+
+    _run(ctx, body)
+
+
 # ── schedule group ───────────────────────────────────────────────────────────
 
 
@@ -1088,6 +1450,84 @@ def schedule_list(ctx: Context, project_code: Optional[int]) -> None:
     _run(ctx, body)
 
 
+@schedule.command("preview")
+@click.option("--crontab", required=True, help="Quartz cron, e.g. '0 0 3 * * ? *'.")
+@click.option("--project-code", type=int, default=None)
+@click.option("--start-time", default=schedules.DEFAULT_START_TIME, help="'yyyy-MM-dd HH:mm:ss' active-window start.")
+@click.option("--end-time", default=schedules.DEFAULT_END_TIME, help="'yyyy-MM-dd HH:mm:ss' active-window end.")
+@click.option("--timezone-id", default=schedules.DEFAULT_TIMEZONE)
+@click.pass_obj
+def schedule_preview(
+    ctx: Context,
+    crontab: str,
+    project_code: Optional[int],
+    start_time: str,
+    end_time: str,
+    timezone_id: str,
+) -> None:
+    """Preview next fire times without creating a schedule."""
+    def body() -> None:
+        pcode = ctx.resolve_project(project_code)
+        result = schedules.preview_schedule(
+            ctx.client,
+            pcode,
+            crontab,
+            start_time=start_time,
+            end_time=end_time,
+            timezone_id=timezone_id,
+        )
+        rows = [[item] for item in _as_list(result)]
+        ctx.output.table(["fire_time"], rows, data=result)
+
+    _run(ctx, body)
+
+
+@schedule.command("online")
+@click.argument("schedule_id", type=int)
+@click.option("--project-code", type=int, default=None)
+@click.pass_obj
+def schedule_online(ctx: Context, schedule_id: int, project_code: Optional[int]) -> None:
+    """Bring a schedule ONLINE."""
+    def body() -> None:
+        pcode = ctx.resolve_project(project_code)
+        result = schedules.set_schedule_state(ctx.client, pcode, schedule_id, online=True)
+        ctx.output.success(f"Schedule {schedule_id} is ONLINE", data=result)
+
+    _run(ctx, body)
+
+
+@schedule.command("offline")
+@click.argument("schedule_id", type=int)
+@click.option("--project-code", type=int, default=None)
+@click.pass_obj
+def schedule_offline(ctx: Context, schedule_id: int, project_code: Optional[int]) -> None:
+    """Take a schedule OFFLINE."""
+    def body() -> None:
+        pcode = ctx.resolve_project(project_code)
+        result = schedules.set_schedule_state(ctx.client, pcode, schedule_id, online=False)
+        ctx.output.success(f"Schedule {schedule_id} is OFFLINE", data=result)
+
+    _run(ctx, body)
+
+
+@schedule.command("delete")
+@click.argument("schedule_id", type=int)
+@click.option("--project-code", type=int, default=None)
+@click.confirmation_option(prompt="Delete this schedule?")
+@click.pass_obj
+def schedule_delete(ctx: Context, schedule_id: int, project_code: Optional[int]) -> None:
+    """Delete a schedule."""
+    def body() -> None:
+        pcode = ctx.resolve_project(project_code)
+        result = schedules.delete_schedule(ctx.client, pcode, schedule_id)
+        ctx.output.success(
+            f"Deleted schedule {schedule_id}",
+            data={"schedule_id": schedule_id, "result": result},
+        )
+
+    _run(ctx, body)
+
+
 # ── token group ──────────────────────────────────────────────────────────────
 
 
@@ -1099,12 +1539,26 @@ def token() -> None:
 @token.command("create")
 @click.option("--user-id", type=int, required=True)
 @click.option("--expire-time", required=True, help="'yyyy-MM-dd HH:mm:ss' expiry.")
+@click.option("--token-value", default=None, help="Explicit token string; omit to let the server generate one.")
 @click.pass_obj
-def token_create(ctx: Context, user_id: int, expire_time: str) -> None:
+def token_create(ctx: Context, user_id: int, expire_time: str, token_value: Optional[str]) -> None:
     """Create an access token for a user."""
     def body() -> None:
-        result = tokens.create_token(ctx.client, user_id, expire_time)
+        result = tokens.create_token(ctx.client, user_id, expire_time, token=token_value)
         ctx.output.success("Created access token", data=result)
+
+    _run(ctx, body)
+
+
+@token.command("generate")
+@click.option("--user-id", type=int, required=True)
+@click.option("--expire-time", required=True, help="'yyyy-MM-dd HH:mm:ss' expiry.")
+@click.pass_obj
+def token_generate(ctx: Context, user_id: int, expire_time: str) -> None:
+    """Generate a token string without persisting it."""
+    def body() -> None:
+        result = tokens.generate_token_string(ctx.client, user_id, expire_time)
+        ctx.output.success("Generated access token string", data={"token": result})
 
     _run(ctx, body)
 
@@ -1118,6 +1572,22 @@ def token_list(ctx: Context) -> None:
         rows = [[t.get("id"), t.get("userName"), t.get("expireTime")]
                 for t in (page.get("totalList") or [])]
         ctx.output.table(["id", "user", "expires"], rows, data=page)
+
+    _run(ctx, body)
+
+
+@token.command("delete")
+@click.argument("token_id", type=int)
+@click.confirmation_option(prompt="Delete this access token?")
+@click.pass_obj
+def token_delete(ctx: Context, token_id: int) -> None:
+    """Delete an access token."""
+    def body() -> None:
+        result = tokens.delete_token(ctx.client, token_id)
+        ctx.output.success(
+            f"Deleted access token {token_id}",
+            data={"token_id": token_id, "result": result},
+        )
 
     _run(ctx, body)
 
@@ -1151,16 +1621,19 @@ def repl(ctx: Context) -> None:
             break
         if line in ("help", "?"):
             skin.help({
-                "project list|use|current|delete": "Project operations",
+                "project create|list|get|use|update|delete": "Project operations",
                 "task build-shell|build-python|build-sql|build-http|build-generic": "Build taskDefinitionJson",
                 "resource tree|list|mkdir|create-file|upload": "Resource Center files",
                 "resource view|update-content|replace|download|delete": "Resource file operations",
+                "datasource list|get|create|update|test|delete": "Datasource definitions",
+                "datasource databases|tables|columns": "Datasource metadata inspection",
                 "workflow list|create-shell|release|delete": "Workflow definitions",
-                "run start|control": "Trigger and control runs",
+                "run start|backfill|control": "Trigger and control runs",
                 "instance list|get|tasks|task-list": "Query workflow and task instances",
                 "instance force-task-success|stop-task": "Task-instance controls",
-                "schedule create|list": "Cron schedules",
-                "token create|list": "Access tokens",
+                "log detail|download": "Task-instance logs",
+                "schedule create|list|preview|online|offline|delete": "Cron schedules",
+                "token create|generate|list|delete": "Access tokens",
                 "config show|set, login": "Config and auth",
                 "help, quit": "Show help, exit",
             })
@@ -1274,6 +1747,21 @@ def _parse_json_object(raw: str, label: str) -> dict[str, Any]:
     return value
 
 
+def _read_json_object_option(
+    json_value: Optional[str],
+    json_file: Optional[str],
+    label: str,
+) -> dict[str, Any]:
+    """Return exactly one JSON object source from CLI options."""
+    if json_value is not None and json_file is not None:
+        raise ValueError(f"pass either --param-json or --param-file for {label}, not both")
+    if json_file is not None:
+        return _parse_json_object(Path(json_file).read_text(encoding="utf-8"), label)
+    if json_value is not None:
+        return _parse_json_object(json_value, label)
+    raise ValueError(f"pass --param-json or --param-file for {label}")
+
+
 def _read_content(content: Optional[str], content_file: Optional[str]) -> str:
     """Return exactly one content source from CLI options."""
     if content is not None and content_file is not None:
@@ -1298,6 +1786,40 @@ def _task_list_from_payload(payload: Any) -> list[dict[str, Any]]:
     else:
         return []
     return [item for item in items if isinstance(item, dict)]
+
+
+def _page_items(payload: Any) -> list[dict[str, Any]]:
+    """Normalize DolphinScheduler PageInfo payloads to table rows."""
+    if isinstance(payload, dict):
+        for key in ("totalList", "records", "items", "list"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return [item for item in value if isinstance(item, dict)]
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    return []
+
+
+def _as_list(payload: Any) -> list[Any]:
+    if isinstance(payload, list):
+        return payload
+    return [] if payload is None else [payload]
+
+
+def _option_label(item: Any) -> Any:
+    if isinstance(item, dict):
+        for key in ("label", "name", "key", "value"):
+            if key in item and item[key] is not None:
+                return item[key]
+    return item
+
+
+def _option_value(item: Any) -> Any:
+    if isinstance(item, dict):
+        for key in ("value", "name", "label", "key"):
+            if key in item and item[key] is not None:
+                return item[key]
+    return item
 
 
 def main() -> None:

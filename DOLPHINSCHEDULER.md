@@ -96,6 +96,7 @@ server's binding.
 |------------|---------------|-------------|
 | Create project | `POST /projects` | `project create` |
 | List projects | `GET /projects/list` | `project list` |
+| Get/update project | `GET /projects/{code}`, `PUT /projects/{code}` | `project get` / `project update` |
 | Find resource base dir | `GET /resources/base-dir` | `resource base-dir` |
 | List resource tree | `GET /resources/list` | `resource tree` |
 | List resource directory | `GET /resources` | `resource list` |
@@ -107,10 +108,13 @@ server's binding.
 | Replace or rename resource | `PUT /resources` | `resource replace` / `resource rename` |
 | Download resource | `GET /resources/download` | `resource download` |
 | Delete resource | `DELETE /resources` | `resource delete` |
+| Create/test datasource | `POST /datasources`, `POST /datasources/connect` | `datasource create` / `test-param` |
+| Query datasource metadata | `GET /datasources/databases`, `/tables`, `/tableColumns` | `datasource databases` / `tables` / `columns` |
 | Build task JSON | local constructors + optional `GET /projects/{code}/task-definition/gen-task-codes` | `task build-*` |
 | Create workflow | `POST /projects/{code}/workflow-definition` | `workflow create-shell` |
 | Publish workflow | `POST /projects/{code}/workflow-definition/{c}/release` | `workflow release` / `--online` |
 | Run workflow | `POST /projects/{code}/executors/start-workflow-instance` | `run start` |
+| Backfill workflow | `POST /projects/{code}/executors/start-workflow-instance` with `execType=COMPLEMENT_DATA` | `run backfill` |
 | Stop/pause run | `POST /projects/{code}/executors/execute` | `run control` |
 | View instances | `GET /projects/{code}/workflow-instances` | `instance list` / `get` |
 | Delete workflow instance | `DELETE /projects/{code}/workflow-instances/{id}` | `instance delete` |
@@ -118,9 +122,13 @@ server's binding.
 | Search task instances | `GET /projects/{code}/task-instances` | `instance task-list` |
 | Force failed task success | `POST /projects/{code}/task-instances/{id}/force-success` | `instance force-task-success` |
 | Stop running task | `POST /projects/{code}/task-instances/{id}/stop` | `instance stop-task` |
+| Read/download task log | `GET /log/detail`, `GET /log/download-log` | `log detail` / `download` |
 | Create schedule | `POST /projects/{code}/schedules` | `schedule create` |
-| Activate schedule | `POST /projects/{code}/schedules/{id}/online` | `schedule create --online` |
-| Create API token | `POST /access-tokens` | `token create` |
+| Preview schedule | `POST /projects/{code}/schedules/preview` | `schedule preview` |
+| Activate/deactivate schedule | `POST /projects/{code}/schedules/{id}/online`, `/offline` | `schedule online` / `offline` |
+| Delete schedule | `DELETE /projects/{code}/schedules/{id}` | `schedule delete` |
+| Create/generate API token | `POST /access-tokens`, `POST /access-tokens/generate` | `token create` / `token generate` |
+| Delete API token | `DELETE /access-tokens/{id}` | `token delete` |
 
 ## 7. Key Endpoint Details
 
@@ -147,6 +155,13 @@ retry/timeout/resource fields) and normalize common `taskParams` keys. When
 `--code` is used, construction is fully local. Without `--code`, the CLI calls
 `GET /projects/{projectCode}/task-definition/gen-task-codes` to allocate a real
 server-side task code before rendering JSON.
+
+### Datasources
+`DataSourceController` is mounted at `/datasources`. The CLI intentionally
+accepts native datasource JSON with `--param-json` / `--param-file` instead of
+duplicating every datasource plugin's schema. Use `datasource test-param` before
+`datasource create` or `datasource update`. Once saved, SQL tasks reference the
+returned datasource `id`.
 
 ### Resource Center files
 `ResourcesController` is mounted at `/resources` and is not project-scoped. The
@@ -186,10 +201,16 @@ type. `POST /projects/{projectCode}/task-instances/{id}/force-success` and
 `POST /projects/{projectCode}/task-instances/{id}/stop` are surfaced for manual
 recovery of failed or long-running task instances.
 
+### Task logs
+`LoggerController` is mounted at `/log`. `log detail` fetches paged text content
+by `taskInstanceId`, `skipLineNum`, and `limit`. `log download` uses
+`core/client.py` binary download handling and writes the server attachment to a
+local file.
+
 ### Cron schedule
 The `schedule` param is a JSON string:
 `{"startTime","endTime","crontab","timezoneId"}`. Quartz cron (6/7 fields).
-Lifecycle: create (offline) → `POST /{id}/online` to activate.
+Lifecycle: preview → create (offline) → online/offline → delete.
 
 ## 8. End-to-End Run Order
 
@@ -224,6 +245,6 @@ Verified against DolphinScheduler 3.4.2 source:
 - `dolphinscheduler-api/.../interceptor/LoginHandlerInterceptor.java` — `token` header auth
 - `dolphinscheduler-api/.../utils/Result.java` — response envelope
 - `dolphinscheduler-api/.../controller/ResourcesController.java` — Resource Center API
-- `dolphinscheduler-api/.../controller/` — 35 REST controllers
+- `dolphinscheduler-api/.../controller/` — 33 endpoint-bearing REST controllers
 - `dolphinscheduler-api/src/main/resources/application.yaml` — port 12345, context path
 - `dolphinscheduler-api-test/.../workflow-json/test.json` — task/relation JSON shapes

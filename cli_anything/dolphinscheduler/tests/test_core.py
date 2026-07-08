@@ -971,3 +971,265 @@ def test_cli_resource_update_content_requires_one_source():
     assert error["success"] is False
     assert error["error"] == "invalid_input"
     assert "pass --content or --content-file" in error["message"]
+
+
+# ── Datasource, schedule, run, and log tests ────────────────────────────────
+
+
+def test_datasource_create_uses_json_body():
+    """Datasource creation sends the native datasource JSON as request body."""
+    from cli_anything.dolphinscheduler.core import datasources
+    from cli_anything.dolphinscheduler.core.client import DolphinSchedulerClient
+    from cli_anything.dolphinscheduler.core.config import ClientConfig
+
+    payload = {
+        "type": "MYSQL",
+        "name": "agent_mysql",
+        "host": "localhost",
+        "port": 3306,
+        "userName": "root",
+        "password": "secret",
+        "database": "dolphinscheduler",
+    }
+    client = DolphinSchedulerClient(ClientConfig(url="http://test/ds", token="test-token"))
+
+    with mock.patch.object(client._session, "request", return_value=_success_response({"id": 9})) as request:
+        result = datasources.create_datasource(client, payload)
+
+    assert result == {"id": 9}
+    assert request.call_args.args[:2] == ("POST", "http://test/ds/datasources")
+    assert request.call_args.kwargs["json"] == payload
+
+
+def test_datasource_metadata_params():
+    """Datasource metadata helpers pass datasource/database/table query params."""
+    from cli_anything.dolphinscheduler.core import datasources
+    from cli_anything.dolphinscheduler.core.client import DolphinSchedulerClient
+    from cli_anything.dolphinscheduler.core.config import ClientConfig
+
+    client = DolphinSchedulerClient(ClientConfig(url="http://test/ds", token="test-token"))
+
+    with mock.patch.object(client._session, "request", return_value=_success_response([])) as request:
+        datasources.list_table_columns(client, 9, "warehouse", "orders")
+
+    assert request.call_args.args[:2] == ("GET", "http://test/ds/datasources/tableColumns")
+    assert request.call_args.kwargs["params"] == {
+        "datasourceId": 9,
+        "database": "warehouse",
+        "tableName": "orders",
+    }
+
+
+def test_cli_datasource_create_json():
+    """CLI datasource create accepts native datasource JSON."""
+    from cli_anything.dolphinscheduler.dolphinscheduler_cli import cli
+
+    payload = '{"type":"MYSQL","name":"agent_mysql","host":"localhost","port":3306}'
+    runner = CliRunner()
+
+    with mock.patch(
+        "cli_anything.dolphinscheduler.dolphinscheduler_cli.datasources.create_datasource",
+        return_value={"id": 9, "name": "agent_mysql"},
+    ) as create_datasource:
+        result = runner.invoke(
+            cli,
+            [
+                "--url",
+                "http://test/ds",
+                "--token",
+                "test-token",
+                "--json",
+                "datasource",
+                "create",
+                "--param-json",
+                payload,
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["data"]["id"] == 9
+    assert create_datasource.call_args.args[1]["type"] == "MYSQL"
+
+
+def test_cli_project_update_json():
+    """CLI project update exposes the existing project update wrapper."""
+    from cli_anything.dolphinscheduler.dolphinscheduler_cli import cli
+
+    runner = CliRunner()
+
+    with mock.patch(
+        "cli_anything.dolphinscheduler.dolphinscheduler_cli.projects.resolve_project_code",
+        return_value=100,
+    ) as resolve_project_code, mock.patch(
+        "cli_anything.dolphinscheduler.dolphinscheduler_cli.projects.update_project",
+        return_value={"code": 100, "name": "new_name"},
+    ) as update_project:
+        result = runner.invoke(
+            cli,
+            [
+                "--url",
+                "http://test/ds",
+                "--token",
+                "test-token",
+                "--json",
+                "project",
+                "update",
+                "old_name",
+                "--name",
+                "new_name",
+                "--description",
+                "updated",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["data"]["name"] == "new_name"
+    assert resolve_project_code.call_args.args[1] == "old_name"
+    assert update_project.call_args.args[1:] == (100, "new_name", "updated")
+
+
+def test_cli_run_backfill_json():
+    """CLI run backfill exposes complement-data execution."""
+    from cli_anything.dolphinscheduler.dolphinscheduler_cli import cli
+
+    runner = CliRunner()
+
+    with mock.patch(
+        "cli_anything.dolphinscheduler.dolphinscheduler_cli.workflows.resolve_workflow_code",
+        return_value=9001,
+    ) as resolve_workflow_code, mock.patch(
+        "cli_anything.dolphinscheduler.dolphinscheduler_cli.executors.backfill_workflow",
+        return_value=[101, 102],
+    ) as backfill_workflow:
+        result = runner.invoke(
+            cli,
+            [
+                "--url",
+                "http://test/ds",
+                "--token",
+                "test-token",
+                "--project-code",
+                "100",
+                "--json",
+                "run",
+                "backfill",
+                "daily_etl",
+                "--start-date",
+                "2026-07-01 00:00:00",
+                "--end-date",
+                "2026-07-02 00:00:00",
+                "--run-mode",
+                "RUN_MODE_PARALLEL",
+                "--expected-parallelism-number",
+                "2",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)["data"]
+    assert data["instance_ids"] == [101, 102]
+    assert resolve_workflow_code.call_args.args[1:] == (100, "daily_etl")
+    assert backfill_workflow.call_args.args[1:5] == (
+        100,
+        9001,
+        "2026-07-01 00:00:00",
+        "2026-07-02 00:00:00",
+    )
+    assert backfill_workflow.call_args.kwargs["run_mode"] == "RUN_MODE_PARALLEL"
+
+
+def test_cli_schedule_preview_json():
+    """CLI schedule preview calls the server preview endpoint without mutation."""
+    from cli_anything.dolphinscheduler.dolphinscheduler_cli import cli
+
+    runner = CliRunner()
+
+    with mock.patch(
+        "cli_anything.dolphinscheduler.dolphinscheduler_cli.schedules.preview_schedule",
+        return_value=["2026-07-09 01:00:00"],
+    ) as preview_schedule:
+        result = runner.invoke(
+            cli,
+            [
+                "--url",
+                "http://test/ds",
+                "--token",
+                "test-token",
+                "--project-code",
+                "100",
+                "--json",
+                "schedule",
+                "preview",
+                "--crontab",
+                "0 0 1 * * ? *",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["data"] == ["2026-07-09 01:00:00"]
+    assert preview_schedule.call_args.args[1:3] == (100, "0 0 1 * * ? *")
+
+
+def test_cli_token_generate_json():
+    """CLI token generate exposes non-persisted token generation."""
+    from cli_anything.dolphinscheduler.dolphinscheduler_cli import cli
+
+    runner = CliRunner()
+
+    with mock.patch(
+        "cli_anything.dolphinscheduler.dolphinscheduler_cli.tokens.generate_token_string",
+        return_value="generated-token",
+    ) as generate_token_string:
+        result = runner.invoke(
+            cli,
+            [
+                "--url",
+                "http://test/ds",
+                "--token",
+                "test-token",
+                "--json",
+                "token",
+                "generate",
+                "--user-id",
+                "1",
+                "--expire-time",
+                "2030-01-01 00:00:00",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["data"]["token"] == "generated-token"
+    assert generate_token_string.call_args.args[1:] == (1, "2030-01-01 00:00:00")
+
+
+def test_cli_log_download_writes_file(tmp_path):
+    """CLI log download writes task-instance log bytes to disk."""
+    from cli_anything.dolphinscheduler.dolphinscheduler_cli import cli
+
+    output = tmp_path / "task.log"
+    runner = CliRunner()
+
+    with mock.patch(
+        "cli_anything.dolphinscheduler.dolphinscheduler_cli.logs.download_task_log",
+        return_value=b"task log",
+    ) as download_task_log:
+        result = runner.invoke(
+            cli,
+            [
+                "--url",
+                "http://test/ds",
+                "--token",
+                "test-token",
+                "--json",
+                "log",
+                "download",
+                "88",
+                "--output",
+                str(output),
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert output.read_bytes() == b"task log"
+    assert json.loads(result.output)["data"]["bytes"] == len(b"task log")
+    assert download_task_log.call_args.args[1] == 88

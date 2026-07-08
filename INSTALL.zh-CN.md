@@ -148,14 +148,16 @@ cli-anything-dolphinscheduler \
 
 | 能力 | 命令 |
 |------|------|
-| 项目 | `project create/list/use/current/delete` |
+| 项目 | `project create/list/get/use/current/update/delete` |
 | 资源中心 | `resource base-dir/tree/list/mkdir/create-file/upload/view/update-content/replace/rename/download/delete` |
+| 数据源 | `datasource create/update/get/list/test/test-param/delete/verify-name/databases/tables/columns` |
 | Task JSON | `task build-shell/build-python/build-sql/build-http/build-generic` |
 | 工作流定义 | `workflow create-shell/list/release/delete` |
-| 运行工作流 | `run start/control` |
+| 运行和补数 | `run start/backfill/control` |
 | 实例排查 | `instance list/get/tasks/task-list/force-task-success/stop-task/delete` |
-| 定时 | `schedule create/list` |
-| Token | `token create/list` |
+| 日志 | `log detail/download` |
+| 定时 | `schedule create/list/preview/online/offline/delete` |
+| Token | `token create/generate/list/delete` |
 
 所有给 AI 解析的命令都建议加 `--json`。非零退出码表示失败，JSON 错误通常在 stderr。
 

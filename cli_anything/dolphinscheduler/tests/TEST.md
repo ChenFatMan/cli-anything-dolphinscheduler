@@ -457,8 +457,8 @@ cli_anything/dolphinscheduler/tests/test_core.py::test_cli_resource_update_conte
 ============================== 40 passed in 0.21s ==============================
 ```
 
-**Summary:**
-- ✅ 40/40 unit tests pass (100% pass rate)
+**Historical pre-refine summary:**
+- ✅ All unit tests passed before the datasource/log refinement
 - Coverage: Config, Session, Client, Projects, Workflows (DagBuilder), generic and typed Task construction, task-instance wrappers, Resource Center wrappers, binary download, and CLI JSON routing
 - All tests run with mocked HTTP responses (no server required)
 - Test execution time: 0.21s
@@ -478,7 +478,7 @@ collected 2 items
 cli_anything/dolphinscheduler/tests/test_full_e2e.py::test_full_workflow_lifecycle PASSED
 cli_anything/dolphinscheduler/tests/test_full_e2e.py::test_schedule_preview_only PASSED
 
-============================== 2 passed in 2.45s ===============================
+============================== 2 passed in 2.41s ===============================
 ```
 
 **Summary:**
@@ -508,19 +508,55 @@ cli_anything/dolphinscheduler/tests/test_subprocess.py::test_cli_project_list_js
 ============================== 7 passed in 1.34s ===============================
 ```
 
-**Summary:**
-- ✅ 7/7 subprocess tests pass
+**Historical pre-refine summary:**
+- ✅ All subprocess tests passed before the datasource/log refinement
 - ✅ CLI installed successfully via `./install.sh --dev --verify --install-skill --install-bin --force-installed-tests`
 - ✅ `cli-anything-dolphinscheduler` command available in PATH
 - ✅ `--version`, `--help`, `resource --help`, `instance --help`, `config show`, and `--json` output all work
 - ✅ Structured error handling verified (no server → JSON error on stderr)
 
+### Refinement Test Results: Datasource, Logs, Backfill, Schedule Lifecycle
+
+Command:
+```bash
+./.venv/bin/python -m pytest cli_anything/dolphinscheduler/tests/test_core.py -v
+```
+
+Result:
+```text
+48 passed in 0.23s
+```
+
+New unit coverage:
+- `datasource` core wrappers use native JSON request bodies and metadata query params.
+- `datasource create` CLI accepts `--param-json` and emits JSON output.
+- `project update` CLI exposes the existing project update wrapper.
+- `run backfill` CLI calls complement-data execution with date range and run mode.
+- `schedule preview` CLI calls the non-mutating preview endpoint.
+- `token generate` CLI exposes server-side token generation without persistence.
+- `log download` CLI writes binary task log content to disk.
+
+Command:
+```bash
+CLI_ANYTHING_FORCE_INSTALLED=1 ./.venv/bin/python -m pytest cli_anything/dolphinscheduler/tests/test_subprocess.py -v
+```
+
+Result:
+```text
+9 passed in 1.76s
+```
+
+New subprocess coverage:
+- Installed root `--help` exposes `datasource` and `log`.
+- Installed `datasource --help` exposes lifecycle and metadata commands.
+- Installed `log --help` exposes `detail` and `download`.
+
 ---
 
 ## Conclusion
 
-- **Unit tests**: ✅ Complete, all passing (40/40)
+- **Unit tests**: ✅ Complete, all passing (48/48)
 - **E2E tests**: ✅ Complete, all passing against a real server (2/2)
-- **Subprocess tests**: ✅ Complete, all passing (7/7)
+- **Subprocess tests**: ✅ Complete, all passing (9/9)
 - **Installation**: ✅ Works via editable install, CLI in PATH
 - **Overall**: Core functionality verified, harness ready for production use

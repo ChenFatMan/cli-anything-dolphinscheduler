@@ -82,14 +82,16 @@ cli-anything-dolphinscheduler --json project list
 
 | Area | Commands |
 |------|----------|
-| Projects | `project create/list/use/current/delete` |
+| Projects | `project create/list/get/use/current/update/delete` |
 | Resource Center | `resource base-dir/tree/list/mkdir/create-file/upload/view/update-content/replace/rename/download/delete` |
+| Datasources | `datasource create/update/get/list/test/test-param/delete/verify-name/databases/tables/columns` |
 | Task JSON | `task build-shell/build-python/build-sql/build-http/build-generic` |
 | Workflows | `workflow create-shell/list/release/delete` |
-| Runs | `run start/control` |
+| Runs | `run start/backfill/control` |
 | Instances | `instance list/get/tasks/task-list/force-task-success/stop-task/delete` |
-| Schedules | `schedule create/list` |
-| Tokens | `token create/list` |
+| Logs | `log detail/download` |
+| Schedules | `schedule create/list/preview/online/offline/delete` |
+| Tokens | `token create/generate/list/delete` |
 
 High-level workflow creation currently has a `workflow create-shell` shortcut.
 For non-shell tasks, build `taskDefinitionJson` with `task build-*`; use
@@ -116,6 +118,21 @@ cli-anything-dolphinscheduler workflow create-shell \
 
 cli-anything-dolphinscheduler --json run start "agent_smoke"
 cli-anything-dolphinscheduler --json instance task-list --state FAILURE
+cli-anything-dolphinscheduler --json log detail <task-instance-id>
+```
+
+## Datasource Example
+
+Create and test a datasource with the same JSON shape DolphinScheduler expects:
+
+```bash
+cli-anything-dolphinscheduler --json datasource test-param \
+  --param-json '{"type":"MYSQL","name":"agent_mysql","host":"localhost","port":3306,"userName":"root","password":"secret","database":"dolphinscheduler","other":{}}'
+
+cli-anything-dolphinscheduler --json datasource create \
+  --param-json '{"type":"MYSQL","name":"agent_mysql","host":"localhost","port":3306,"userName":"root","password":"secret","database":"dolphinscheduler","other":{}}'
+
+cli-anything-dolphinscheduler --json datasource databases <datasource-id>
 ```
 
 ## Manual Install
@@ -130,6 +147,7 @@ chmod +x install.sh
 ## Documentation
 
 - [中文 Agent 使用手册](AGENT_USAGE.zh-CN.md)
+- [中文 API 覆盖缺口](COVERAGE_GAP.zh-CN.md)
 - [中文安装与使用说明](INSTALL.zh-CN.md)
 - [English install guide](INSTALL.md)
 - [Full command reference](cli_anything/dolphinscheduler/README.md)

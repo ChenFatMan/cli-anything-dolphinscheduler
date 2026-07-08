@@ -62,8 +62,10 @@ def test_cli_help():
     assert "project" in result.stdout
     assert "workflow" in result.stdout
     assert "resource" in result.stdout
+    assert "datasource" in result.stdout
     assert "run" in result.stdout
     assert "instance" in result.stdout
+    assert "log" in result.stdout
 
 
 def test_cli_resource_help():
@@ -92,6 +94,32 @@ def test_cli_instance_help():
     assert "tasks" in result.stdout
     assert "force-task-success" in result.stdout
     assert "stop-task" in result.stdout
+
+
+def test_cli_datasource_help():
+    """Installed CLI datasource help exposes datasource lifecycle commands."""
+    cli_path = _resolve_cli("cli-anything-dolphinscheduler")
+    result = subprocess.run(
+        [cli_path, "datasource", "--help"], capture_output=True, text=True, check=False
+    )
+
+    assert result.returncode == 0
+    assert "create" in result.stdout
+    assert "test-param" in result.stdout
+    assert "databases" in result.stdout
+    assert "columns" in result.stdout
+
+
+def test_cli_log_help():
+    """Installed CLI log help exposes task-log commands."""
+    cli_path = _resolve_cli("cli-anything-dolphinscheduler")
+    result = subprocess.run(
+        [cli_path, "log", "--help"], capture_output=True, text=True, check=False
+    )
+
+    assert result.returncode == 0
+    assert "detail" in result.stdout
+    assert "download" in result.stdout
 
 
 def test_cli_config_show():

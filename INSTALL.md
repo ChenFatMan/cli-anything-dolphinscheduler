@@ -169,6 +169,16 @@ cli-anything-dolphinscheduler --json task build-generic \
   --code 1002
 ```
 
+Datasource:
+
+```bash
+cli-anything-dolphinscheduler --json datasource test-param \
+  --param-json '{"type":"MYSQL","name":"agent_mysql","host":"localhost","port":3306,"userName":"root","password":"secret","database":"dolphinscheduler","other":{}}'
+
+cli-anything-dolphinscheduler --json datasource create \
+  --param-json '{"type":"MYSQL","name":"agent_mysql","host":"localhost","port":3306,"userName":"root","password":"secret","database":"dolphinscheduler","other":{}}'
+```
+
 Run and inspect:
 
 ```bash
@@ -178,20 +188,23 @@ cli-anything-dolphinscheduler workflow create-shell \
   --online
 cli-anything-dolphinscheduler --json run start "agent_smoke"
 cli-anything-dolphinscheduler --json instance task-list --state FAILURE
+cli-anything-dolphinscheduler --json log detail <task-instance-id>
 ```
 
 ## Supported Areas
 
 | Area | Commands |
 |------|----------|
-| Projects | `project create/list/use/current/delete` |
+| Projects | `project create/list/get/use/current/update/delete` |
 | Resource Center | `resource base-dir/tree/list/mkdir/create-file/upload/view/update-content/replace/rename/download/delete` |
+| Datasources | `datasource create/update/get/list/test/test-param/delete/verify-name/databases/tables/columns` |
 | Task JSON | `task build-shell/build-python/build-sql/build-http/build-generic` |
 | Workflows | `workflow create-shell/list/release/delete` |
-| Runs | `run start/control` |
+| Runs | `run start/backfill/control` |
 | Instances | `instance list/get/tasks/task-list/force-task-success/stop-task/delete` |
-| Schedules | `schedule create/list` |
-| Tokens | `token create/list` |
+| Logs | `log detail/download` |
+| Schedules | `schedule create/list/preview/online/offline/delete` |
+| Tokens | `token create/generate/list/delete` |
 
 ## Current Boundaries
 
@@ -201,6 +214,8 @@ cli-anything-dolphinscheduler --json instance task-list --state FAILURE
   `taskParams`.
 - Resource Center file/directory operations are supported. Task `resourceList`
   values still need to match DolphinScheduler's real taskParams shape.
+- Datasource creation accepts native DolphinScheduler datasource JSON and lets
+  the real server/plugin validate it.
 - The CLI never fakes server success. Permissions, paths, and runtime behavior
   are decided by the real DolphinScheduler server.
 

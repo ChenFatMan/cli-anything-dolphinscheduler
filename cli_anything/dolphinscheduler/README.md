@@ -49,14 +49,16 @@ Connection settings resolve in this order:
 
 | Group | Purpose |
 |-------|---------|
-| `project` | Create, list, select, and delete projects |
+| `project` | Create, list, get, select, update, and delete projects |
 | `resource` | Manage Resource Center files and directories |
+| `datasource` | Create, test, list, update, delete, and inspect datasources |
 | `task` | Build `taskDefinitionJson` entries |
 | `workflow` | Create shell workflows, list, release, delete definitions |
-| `run` | Trigger and control workflow execution |
+| `run` | Trigger, backfill, and control workflow execution |
 | `instance` | Inspect workflow and task instances |
-| `schedule` | Create and list cron schedules |
-| `token` | Create and list API access tokens |
+| `log` | Query and download task-instance logs |
+| `schedule` | Create, list, preview, online, offline, and delete cron schedules |
+| `token` | Create, generate, list, and delete API access tokens |
 | `config` / `login` | Persist config and verify credentials |
 
 All commands support `--json` from the root command.
@@ -66,8 +68,10 @@ All commands support `--json` from the root command.
 ```bash
 project create <name> [--description TEXT]
 project list [--search TEXT]
+project get <name-or-code>
 project use <name-or-code>
 project current
+project update <name-or-code> --name TEXT [--description TEXT]
 project delete <name-or-code>
 ```
 
@@ -114,6 +118,38 @@ cli-anything-dolphinscheduler --json resource upload \
 
 cli-anything-dolphinscheduler --json resource view <file-full-name>
 cli-anything-dolphinscheduler --json resource download <file-full-name> --output ./job.py
+```
+
+## Datasource
+
+Datasource commands use DolphinScheduler's native datasource parameter JSON.
+This avoids hardcoding every datasource plugin schema in the CLI.
+
+```bash
+datasource list [--type MYSQL] [--search TEXT] [--page-no INT] [--page-size INT]
+datasource get <datasource-id>
+datasource create (--param-json JSON | --param-file PATH)
+datasource update <datasource-id> (--param-json JSON | --param-file PATH)
+datasource test-param (--param-json JSON | --param-file PATH)
+datasource test <datasource-id>
+datasource delete <datasource-id> --yes
+datasource verify-name <name>
+datasource kerberos-state
+datasource databases <datasource-id>
+datasource tables <datasource-id> <database>
+datasource columns <datasource-id> <database> <table-name>
+```
+
+Example:
+
+```bash
+cli-anything-dolphinscheduler --json datasource test-param \
+  --param-json '{"type":"MYSQL","name":"agent_mysql","host":"localhost","port":3306,"userName":"root","password":"secret","database":"dolphinscheduler","other":{}}'
+
+cli-anything-dolphinscheduler --json datasource create \
+  --param-json '{"type":"MYSQL","name":"agent_mysql","host":"localhost","port":3306,"userName":"root","password":"secret","database":"dolphinscheduler","other":{}}'
+
+cli-anything-dolphinscheduler --json datasource tables <datasource-id> dolphinscheduler
 ```
 
 ## Task JSON
@@ -186,6 +222,7 @@ cli-anything-dolphinscheduler workflow create-shell \
 
 ```bash
 run start <name-or-code> [--dry-run]
+run backfill <name-or-code> --start-date "yyyy-MM-dd HH:mm:ss" --end-date "yyyy-MM-dd HH:mm:ss"
 run control <instance-id> STOP|PAUSE|REPEAT_RUNNING|RECOVER_SUSPENDED_PROCESS
 ```
 
@@ -212,6 +249,14 @@ Failure triage:
 ```bash
 cli-anything-dolphinscheduler --json instance task-list --state FAILURE
 cli-anything-dolphinscheduler --json instance tasks <workflow-instance-id>
+cli-anything-dolphinscheduler --json log detail <task-instance-id>
+```
+
+## Log
+
+```bash
+log detail <task-instance-id> [--skip-line-num INT] [--limit INT]
+log download <task-instance-id> --output PATH
 ```
 
 ## Schedule
@@ -219,6 +264,10 @@ cli-anything-dolphinscheduler --json instance tasks <workflow-instance-id>
 ```bash
 schedule create <name-or-code> --crontab "0 0 3 * * ? *" [--online]
 schedule list
+schedule preview --crontab "0 0 3 * * ? *"
+schedule online <schedule-id>
+schedule offline <schedule-id>
+schedule delete <schedule-id> --yes
 ```
 
 Crontab is a Quartz expression.
@@ -227,7 +276,9 @@ Crontab is a Quartz expression.
 
 ```bash
 token create --user-id INT --expire-time "2030-01-01 00:00:00"
+token generate --user-id INT --expire-time "2030-01-01 00:00:00"
 token list
+token delete <token-id> --yes
 ```
 
 ## REPL
@@ -253,6 +304,8 @@ dolphinscheduler ❯ quit
 - Use `task build-* --json` to inspect task construction; pass `--code` for
   offline JSON, omit it to allocate a server task code.
 - Use `instance task-list` and `instance tasks` before mutating failed task state.
+- Use `log detail` before guessing why a task failed.
+- Use `datasource test-param` before `datasource create` or `datasource update`.
 
 ## Current Boundaries
 
@@ -261,6 +314,8 @@ dolphinscheduler ❯ quit
   workflow builder.
 - Resource Center operations are supported, but task `resourceList` values must
   still match the real DolphinScheduler taskParams schema.
+- Datasource creation accepts native JSON and relies on the real server/plugin
+  for validation.
 - The CLI does not fake server success; permissions, paths, and runtime behavior
   come from the real server.
 
@@ -274,6 +329,7 @@ CLI_ANYTHING_FORCE_INSTALLED=1 python3 -m pytest cli_anything/dolphinscheduler/t
 ## References
 
 - [AGENT_USAGE.zh-CN.md](../../AGENT_USAGE.zh-CN.md) — Chinese Codex / AI agent runbook
+- [COVERAGE_GAP.zh-CN.md](../../COVERAGE_GAP.zh-CN.md) — API coverage gap report
 - [DOLPHINSCHEDULER.md](../../DOLPHINSCHEDULER.md) — REST API map
 - [tests/TEST.md](tests/TEST.md) — test plan and results
 - [Apache DolphinScheduler Docs](https://dolphinscheduler.apache.org/en-us/docs/latest)

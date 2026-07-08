@@ -6,7 +6,7 @@
 
 ## 一句话结论
 
-可以直接安装给 Codex 使用。只要 DolphinScheduler API Server 可访问，并配置了 `DS_URL` 加 `DS_TOKEN` 或 `DS_USER` / `DS_PASSWORD`，Codex 就能调用 `cli-anything-dolphinscheduler` 创建项目、管理资源中心文件、创建并运行 shell 工作流、构造非 shell task JSON、查询实例和排查失败。
+可以直接安装给 Codex 使用。只要 DolphinScheduler API Server 可访问，并配置了 `DS_URL` 加 `DS_TOKEN` 或 `DS_USER` / `DS_PASSWORD`，Codex 就能调用 `cli-anything-dolphinscheduler` 创建项目、管理资源中心文件、管理数据源、创建并运行 shell 工作流、构造非 shell task JSON、查询实例、读取任务日志并排查失败。
 
 ## 给 Codex 的任务模板
 
@@ -152,16 +152,17 @@ cli-anything-dolphinscheduler \
 
 | 目标 | 当前状态 | 命令 |
 |------|----------|------|
-| 创建/选择项目 | 已支持 | `project create`, `project use`, `project list` |
-| 管理资源中心文件 | 已支持 | `resource base-dir/list/mkdir/create-file/upload/view/update-content/replace/download/delete` |
+| 创建/选择项目 | 已支持 | `project create`, `project list`, `project get`, `project use`, `project update` |
+| 管理资源中心文件 | 已支持 | `resource base-dir/tree/list/mkdir/create-file/upload/view/update-content/replace/rename/download/delete` |
+| 管理数据源 | 已支持 | `datasource create/update/get/list/test/test-param/delete/verify-name/databases/tables/columns` |
 | 创建 shell 工作流 | 已支持 | `workflow create-shell` |
 | 构造 Python/SQL/HTTP task JSON | 已支持 | `task build-python`, `task build-sql`, `task build-http` |
 | 构造任意插件 task JSON | 已支持 | `task build-generic` |
-| 运行工作流 | 已支持 | `run start` |
+| 运行和补数 | 已支持 | `run start`, `run backfill`, `run control` |
 | 查询实例和任务失败 | 已支持 | `instance list`, `instance tasks`, `instance task-list` |
-| 定时调度 | 已支持 | `schedule create`, `schedule list` |
-| API token | 已支持 | `token create`, `token list` |
-| 数据源管理 | 未封装 | 目前只能在 SQL task 里引用已有 datasource id |
+| 查看任务日志 | 已支持 | `log detail`, `log download` |
+| 定时调度 | 已支持 | `schedule create`, `schedule list`, `schedule preview`, `schedule online/offline/delete` |
+| API token | 已支持 | `token create`, `token generate`, `token list`, `token delete` |
 | 高层非 shell 工作流创建 | 未封装 | 需要先用 `task build-*` 构造 JSON，再按 DolphinScheduler API 形状组装 |
 
 ## 标准操作顺序
@@ -255,12 +256,31 @@ cli-anything-dolphinscheduler --json task build-generic \
 - 无 `--code`：需要当前项目或 `--project-code`，CLI 会请求 server 分配真实 task code。
 - `build-generic` 不猜参数，`--params-json` 必须匹配真实 DolphinScheduler task plugin。
 
-### 5. 排查运行失败
+### 5. 创建和检查数据源
+
+数据源命令接收 DolphinScheduler 原生 datasource 参数 JSON。CLI 不猜每个数据库插件的 schema，由 server/plugin 做真实校验。
+
+```bash
+cli-anything-dolphinscheduler --json datasource test-param \
+  --param-json '{"type":"MYSQL","name":"agent_mysql","host":"localhost","port":3306,"userName":"root","password":"secret","database":"dolphinscheduler","other":{}}'
+
+cli-anything-dolphinscheduler --json datasource create \
+  --param-json '{"type":"MYSQL","name":"agent_mysql","host":"localhost","port":3306,"userName":"root","password":"secret","database":"dolphinscheduler","other":{}}'
+
+cli-anything-dolphinscheduler --json datasource list --type MYSQL
+cli-anything-dolphinscheduler --json datasource test <datasource-id>
+cli-anything-dolphinscheduler --json datasource databases <datasource-id>
+cli-anything-dolphinscheduler --json datasource tables <datasource-id> <database>
+cli-anything-dolphinscheduler --json datasource columns <datasource-id> <database> <table-name>
+```
+
+### 6. 排查运行失败
 
 ```bash
 cli-anything-dolphinscheduler --json instance list --page-size 10
 cli-anything-dolphinscheduler --json instance tasks <workflow-instance-id>
 cli-anything-dolphinscheduler --json instance task-list --state FAILURE
+cli-anything-dolphinscheduler --json log detail <task-instance-id>
 ```
 
 必要时人工控制：
@@ -271,20 +291,31 @@ cli-anything-dolphinscheduler --json instance stop-task <task-instance-id>
 cli-anything-dolphinscheduler --json instance force-task-success <task-instance-id>
 ```
 
-## 数据源当前边界
+### 7. 补数和调度
 
-当前没有 `datasource` 命令组，所以不能通过本 CLI 创建、测试连接、更新、删除 DolphinScheduler 数据源。
-
-已支持的是在 SQL task 中引用已有数据源：
+补数：
 
 ```bash
-cli-anything-dolphinscheduler --json task build-sql \
-  --name query_task \
-  --sql "select 1" \
-  --datasource <existing-datasource-id>
+cli-anything-dolphinscheduler --json run backfill "agent_smoke" \
+  --start-date "2026-07-01 00:00:00" \
+  --end-date "2026-07-02 00:00:00" \
+  --run-mode RUN_MODE_SERIAL
 ```
 
-如果任务要求“创建数据源”，agent 必须明确说明当前 CLI 未封装该能力，不能假装已创建。后续要补齐时，应新增 `core/datasources.py` 和 `datasource` 命令组。
+调度：
+
+```bash
+cli-anything-dolphinscheduler --json schedule preview --crontab "0 0 3 * * ? *"
+cli-anything-dolphinscheduler --json schedule create "agent_smoke" --crontab "0 0 3 * * ? *" --online
+cli-anything-dolphinscheduler --json schedule offline <schedule-id>
+cli-anything-dolphinscheduler --json schedule delete <schedule-id> --yes
+```
+
+## 当前边界
+
+- 高层工作流创建目前仍只有 `workflow create-shell` 快捷命令。
+- 非 shell 工作流需要先用 `task build-*` 构造 JSON，再按 DolphinScheduler workflow-definition API 形状组装。
+- 完整缺口清单见 [COVERAGE_GAP.zh-CN.md](COVERAGE_GAP.zh-CN.md)。
 
 ## 失败处理规则
 

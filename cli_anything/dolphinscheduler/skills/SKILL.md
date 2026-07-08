@@ -1,6 +1,6 @@
 ---
 name: cli-anything-dolphinscheduler
-description: Use when the user wants an agent to install, configure, inspect, or operate Apache DolphinScheduler from Codex or a command line, including projects, Resource Center files, workflow definitions, task JSON, runs, instances, schedules, tokens, and --json automation against a real DolphinScheduler API server.
+description: Use when the user wants an agent to install, configure, inspect, or operate Apache DolphinScheduler from Codex or a command line, including projects, Resource Center files, datasources, workflow definitions, task JSON, runs, instances, logs, schedules, tokens, and --json automation against a real DolphinScheduler API server.
 ---
 
 # cli-anything-dolphinscheduler
@@ -20,9 +20,10 @@ self-contained when installed under `~/.codex/skills`.
 | CLI installed but no server config | Configure `DS_URL` plus `DS_TOKEN` or `DS_USER` / `DS_PASSWORD` |
 | Need machine parsing | Add root `--json` to every command |
 | Need files/scripts in DS | Use `resource ...` commands |
+| Need datasource setup | Use `datasource test-param`, then `datasource create` |
 | Need non-shell task JSON | Use `task build-python/sql/http/generic` |
 | Need to run a workflow | Ensure the workflow is `ONLINE`, then `run start` |
-| Need failure triage | Use `instance task-list` and `instance tasks` before mutation |
+| Need failure triage | Use `instance task-list`, `instance tasks`, and `log detail` before mutation |
 
 ## Install for Codex
 
@@ -79,14 +80,16 @@ cli-anything-dolphinscheduler --json project list
 
 | Group | Covers |
 |-------|--------|
-| `project` | `create`, `list`, `use`, `current`, `delete` |
+| `project` | `create`, `list`, `get`, `use`, `current`, `update`, `delete` |
 | `resource` | `base-dir`, `tree`, `list`, `mkdir`, `create-file`, `upload`, `view`, `update-content`, `replace`, `rename`, `download`, `delete` |
+| `datasource` | `create`, `update`, `get`, `list`, `test`, `test-param`, `delete`, `verify-name`, `databases`, `tables`, `columns`, `kerberos-state` |
 | `task` | `build-shell`, `build-python`, `build-sql`, `build-http`, `build-generic` |
 | `workflow` | `create-shell`, `list`, `release`, `delete` |
-| `run` | `start`, `control` |
+| `run` | `start`, `backfill`, `control` |
 | `instance` | `list`, `get`, `tasks`, `task-list`, `force-task-success`, `stop-task`, `delete` |
-| `schedule` | `create`, `list` |
-| `token` | `create`, `list` |
+| `log` | `detail`, `download` |
+| `schedule` | `create`, `list`, `preview`, `online`, `offline`, `delete` |
+| `token` | `create`, `generate`, `list`, `delete` |
 
 ## Standard Agent Flow
 
@@ -101,6 +104,7 @@ cli-anything-dolphinscheduler workflow create-shell \
 
 cli-anything-dolphinscheduler --json run start "agent_smoke"
 cli-anything-dolphinscheduler --json instance task-list --state FAILURE
+cli-anything-dolphinscheduler --json log detail <task-instance-id>
 ```
 
 ## Resource Center
@@ -132,6 +136,24 @@ cli-anything-dolphinscheduler --json resource view <file-full-name>
 cli-anything-dolphinscheduler --json resource update-content <file-full-name> --content-file ./job.py
 cli-anything-dolphinscheduler --json resource download <file-full-name> --output ./job.py
 cli-anything-dolphinscheduler --json resource delete <file-full-name> --yes
+```
+
+## Datasources
+
+Datasource commands accept native DolphinScheduler datasource JSON. Test before
+creating:
+
+```bash
+cli-anything-dolphinscheduler --json datasource test-param \
+  --param-json '{"type":"MYSQL","name":"agent_mysql","host":"localhost","port":3306,"userName":"root","password":"secret","database":"dolphinscheduler","other":{}}'
+
+cli-anything-dolphinscheduler --json datasource create \
+  --param-json '{"type":"MYSQL","name":"agent_mysql","host":"localhost","port":3306,"userName":"root","password":"secret","database":"dolphinscheduler","other":{}}'
+
+cli-anything-dolphinscheduler --json datasource test <datasource-id>
+cli-anything-dolphinscheduler --json datasource databases <datasource-id>
+cli-anything-dolphinscheduler --json datasource tables <datasource-id> <database>
+cli-anything-dolphinscheduler --json datasource columns <datasource-id> <database> <table-name>
 ```
 
 ## Task JSON
@@ -180,4 +202,5 @@ Rules:
 - High-level workflow creation currently covers shell DAGs through `workflow create-shell`.
 - Non-shell task support exists through `task build-*` JSON builders.
 - Resource Center file and directory operations are supported, but task `resourceList` wiring must match DolphinScheduler's real taskParams shape.
+- Datasource creation uses native JSON and relies on the real server/plugin for validation.
 - Do not report a successful DS operation unless the CLI exits 0.
